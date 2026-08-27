@@ -16,18 +16,20 @@ import {
   Plus,
   ShieldAlert,
 } from 'lucide-react';
-import { Invoice, Payment, RoleType } from '../../types';
+import { Invoice, Payment, RoleType, CompanySetting } from '../../types';
 import {
   formatRupiah,
   formatIndonesianDate,
   formatShortDate,
 } from '../../services/calculation';
 import { StatusBadge } from '../common/Badge';
+import { initialCompany } from '../../services/initialData';
 
 interface InvoiceDetailViewProps {
   invoice: Invoice;
   payments: Payment[];
   userRole: RoleType;
+  company?: CompanySetting;
   onBack: () => void;
   onPreviewPrint: () => void;
   onRecordPayment: () => void;
@@ -37,15 +39,52 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
   invoice,
   payments,
   userRole,
+  company = initialCompany,
   onBack,
   onPreviewPrint,
   onRecordPayment,
 }) => {
+  const activeCompany = company || initialCompany;
   const isManager = userRole === 'manager';
   const relatedPayments = payments.filter((p) => p.invoiceId === invoice.id);
+  const companySlogan = activeCompany.tagline?.trim() || initialCompany.tagline;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      {/* Company Branding & Slogan Header Bar */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          {activeCompany.logoUrl ? (
+            <img
+              src={activeCompany.logoUrl}
+              alt="Logo"
+              className="w-10 h-10 rounded-xl object-contain bg-white p-1 shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0">
+              {activeCompany.name.substring(0, 2).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h2 className="font-bold text-sm text-white tracking-tight leading-tight">
+              {activeCompany.name}
+            </h2>
+            {companySlogan && (
+              <p className="text-xs text-indigo-200 font-medium italic mt-0.5">
+                "{companySlogan}"
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="text-xs text-slate-300 sm:text-right">
+          <span className="text-slate-400">NPWP: </span>
+          <span className="font-mono font-medium text-white">{activeCompany.npwp || '-'}</span>
+          <span className="hidden sm:inline mx-1.5">•</span>
+          <span className="text-slate-400">Telp: </span>
+          <span className="text-white">{activeCompany.phone}</span>
+        </div>
+      </div>
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

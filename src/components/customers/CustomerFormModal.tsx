@@ -15,8 +15,6 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   customer,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const isEditing = !!customer;
 
   const [code, setCode] = useState(customer?.code || '');
@@ -31,9 +29,29 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [email, setEmail] = useState(customer?.email || '');
   const [contactPerson, setContactPerson] = useState(customer?.contactPerson || '');
   const [notes, setNotes] = useState(customer?.notes || '');
-  const [isActive, setIsActive] = useState(customer !== undefined ? customer.isActive : true);
-
+  const [isActive, setIsActive] = useState(customer?.isActive ?? true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setCode(customer?.code || '');
+      setName(customer?.name || '');
+      setCompanyName(customer?.companyName || '');
+      setAddress(customer?.address || '');
+      setCity(customer?.city || 'Bantul');
+      setProvince(customer?.province || 'D.I. Yogyakarta');
+      setPostalCode(customer?.postalCode || '');
+      setNpwp(customer?.npwp || '');
+      setPhone(customer?.phone || '');
+      setEmail(customer?.email || '');
+      setContactPerson(customer?.contactPerson || '');
+      setNotes(customer?.notes || '');
+      setIsActive(customer?.isActive ?? true);
+      setErrorMsg('');
+    }
+  }, [isOpen, customer]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -135,7 +135,8 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
                 <th className="py-3.5 px-4">Kode & Nama Layanan Jasa</th>
                 <th className="py-3.5 px-4">Kategori Jasa</th>
                 <th className="py-3.5 px-4 text-center">Satuan Tarif</th>
-                <th className="py-3.5 px-4 text-right">Tarif Standar (Rp)</th>
+                <th className="py-3.5 px-4 text-right">Modal / HPP (Rp)</th>
+                <th className="py-3.5 px-4 text-right">Tarif Jual (Rp)</th>
                 <th className="py-3.5 px-4 text-center">Status</th>
                 <th className="py-3.5 px-4 text-center w-24">Aksi</th>
               </tr>
@@ -143,7 +144,7 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredServices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Wrench className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">Belum ada layanan jasa</p>
                     <p className="text-xs text-slate-400">
@@ -171,6 +172,9 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-center text-slate-700 font-medium">
                       Per {s.unit}
+                    </td>
+                    <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                      {formatRupiah(s.costPrice || 0)}
                     </td>
                     <td className="py-3.5 px-4 text-right font-bold font-mono text-purple-900 text-sm">
                       {formatRupiah(s.price)}

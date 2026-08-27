@@ -97,25 +97,33 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
   // Line items state
   const [items, setItems] = useState<InvoiceItem[]>(() => {
     if (editInvoice?.items && editInvoice.items.length > 0) {
-      return editInvoice.items;
+      return editInvoice.items.map((it) => ({
+        ...it,
+        costPrice: it.costPrice ?? (products.find((p) => p.id === it.itemId)?.costPrice || 0),
+        totalCost: (it.quantity || 1) * (it.costPrice ?? (products.find((p) => p.id === it.itemId)?.costPrice || 0)),
+      }));
     }
+    const defaultProd = products[0];
+    const defaultCost = defaultProd ? (defaultProd.costPrice ?? defaultProd.purchasePrice ?? 0) : 0;
     // Default initial row
     return [
       {
         id: `item-${Date.now()}`,
         itemType: 'product',
-        itemId: products[0]?.id || '',
-        code: products[0]?.code || 'PRD-01',
-        name: products[0]?.name || '',
-        description: products[0]?.description || '',
+        itemId: defaultProd?.id || '',
+        code: defaultProd?.code || 'PRD-01',
+        name: defaultProd?.name || '',
+        description: defaultProd?.description || '',
         quantity: 1,
-        unit: products[0]?.unit || 'unit',
-        unitPrice: products[0]?.sellingPrice || 0,
+        unit: defaultProd?.unit || 'unit',
+        costPrice: defaultCost,
+        totalCost: defaultCost,
+        unitPrice: defaultProd?.sellingPrice || 0,
         discountType: 'percentage',
         discountValue: 0,
         discountAmount: 0,
         isTaxable: true,
-        totalPrice: products[0]?.sellingPrice || 0,
+        totalPrice: defaultProd?.sellingPrice || 0,
       },
     ];
   });
@@ -133,6 +141,9 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
   );
   const [ppnRate, setPpnRate] = useState<number>(
     editInvoice?.ppnRate !== undefined ? editInvoice.ppnRate : (invoiceSetting?.ppnRate ?? 11)
+  );
+  const [taxCalculationType, setTaxCalculationType] = useState<'exclusive' | 'inclusive'>(
+    editInvoice?.taxCalculationType || invoiceSetting?.defaultTaxCalculationType || 'exclusive'
   );
 
   const [isMateraiActive, setIsMateraiActive] = useState<boolean>(
@@ -191,6 +202,34 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     }
   }, [currentCustomer]);
 
+  // Set Quick Invoice Date Presets
+  const setQuickInvoiceDate = (type: 'today' | 'yesterday' | 'month_start') => {
+    const d = new Date();
+    if (type === 'yesterday') {
+      d.setDate(d.getDate() - 1);
+    } else if (type === 'month_start') {
+      d.setDate(1);
+    }
+    const dateStr = d.toISOString().split('T')[0];
+    handleDateChange(dateStr);
+  };
+
+  // Set Quick Term / Due Date Presets
+  const setQuickDueDays = (days: number) => {
+    const base = invoiceDate ? new Date(invoiceDate) : new Date();
+    base.setDate(base.getDate() + days);
+    setDueDate(base.toISOString().split('T')[0]);
+  };
+
+  // Calculate day difference between invoice date and due date
+  const dueDayDiff = useMemo(() => {
+    if (!invoiceDate || !dueDate) return null;
+    const d1 = new Date(invoiceDate);
+    const d2 = new Date(dueDate);
+    const diffTime = d2.getTime() - d1.getTime();
+    return Math.round(diffTime / (1000 * 3600 * 24));
+  }, [invoiceDate, dueDate]);
+
   // Regenerate number if date changes and not editing
   const handleDateChange = (newDate: string) => {
     setInvoiceDate(newDate);
@@ -206,6 +245,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
   // --- ITEM ACTIONS ---
   const handleAddItem = () => {
+    const defaultProd = products[0];
+    const defaultCost = defaultProd ? (defaultProd.costPrice ?? defaultProd.purchasePrice ?? 0) : 0;
     const newItem: InvoiceItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       itemType: 'product',
@@ -215,6 +256,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       description: '',
       quantity: 1,
       unit: 'unit',
+      costPrice: defaultCost,
+      totalCost: defaultCost,
       unitPrice: 0,
       discountType: 'percentage',
       discountValue: 0,
@@ -237,10 +280,11 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     const updated = [...items];
     const item = { ...updated[index], [field]: value };
 
-    // Auto-calculate line total
+    // Auto-calculate line total and modal
     const calc = calculateLineItem(item);
     item.discountAmount = calc.discountAmount;
     item.totalPrice = calc.totalPrice;
+    item.totalCost = (item.quantity || 0) * (item.costPrice || 0);
 
     updated[index] = item;
     setItems(updated);
@@ -251,6 +295,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     if (type === 'product') {
       const p = products.find((prod) => prod.id === id);
       if (p) {
+        const costPrice = p.costPrice ?? p.purchasePrice ?? 0;
+        const qty = updated[index].quantity > 0 ? updated[index].quantity : 1;
         const item: InvoiceItem = {
           ...updated[index],
           itemType: 'product',
@@ -259,8 +305,10 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
           name: p.name,
           description: p.description || '',
           unit: p.unit || 'unit',
+          costPrice: costPrice,
+          totalCost: qty * costPrice,
           unitPrice: p.sellingPrice || 0,
-          quantity: updated[index].quantity > 0 ? updated[index].quantity : 1,
+          quantity: qty,
         };
         const calc = calculateLineItem(item);
         item.discountAmount = calc.discountAmount;
@@ -270,6 +318,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     } else {
       const s = services.find((srv) => srv.id === id);
       if (s) {
+        const costPrice = s.costPrice ?? 0;
+        const qty = updated[index].quantity > 0 ? updated[index].quantity : 1;
         const item: InvoiceItem = {
           ...updated[index],
           itemType: 'service',
@@ -278,8 +328,10 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
           name: s.name,
           description: s.description || '',
           unit: s.unit || 'paket',
+          costPrice: costPrice,
+          totalCost: qty * costPrice,
           unitPrice: s.price || 0,
-          quantity: updated[index].quantity > 0 ? updated[index].quantity : 1,
+          quantity: qty,
         };
         const calc = calculateLineItem(item);
         item.discountAmount = calc.discountAmount;
@@ -298,6 +350,7 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       invoiceDiscountValue,
       isPpnActive,
       ppnRate,
+      taxCalculationType,
       isMateraiActive,
       materaiAmount,
       materaiThreshold: invoiceSetting.materaiThreshold || 5000000,
@@ -309,11 +362,23 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     invoiceDiscountValue,
     isPpnActive,
     ppnRate,
+    taxCalculationType,
     isMateraiActive,
     materaiAmount,
     invoiceSetting.materaiThreshold,
     editInvoice?.amountPaid,
   ]);
+
+  // Internal Profit & Loss and HPP Calculations
+  const internalProfitAnalysis = useMemo(() => {
+    const totalCostHpp = items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0),
+      0
+    );
+    const estGrossProfit = summary.taxableBase - totalCostHpp;
+    const estMarginPercent = summary.taxableBase > 0 ? (estGrossProfit / summary.taxableBase) * 100 : 0;
+    return { totalCostHpp, estGrossProfit, estMarginPercent };
+  }, [items, summary.taxableBase]);
 
   // Validation
   const validateForm = (): boolean => {
@@ -349,6 +414,12 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
     if (!currentCustomer) return;
 
+    const totalHpp = items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0),
+      0
+    );
+    const grossProfit = summary.taxableBase - totalHpp;
+
     const payload: Invoice = {
       id: editInvoice?.id || `inv-${Date.now()}`,
       invoiceNumber: invoiceNumber.trim(),
@@ -369,12 +440,15 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       taxableBase: summary.taxableBase,
       isPpnActive,
       ppnRate,
+      taxCalculationType,
       ppnAmount: summary.ppnAmount,
       isMateraiActive,
       materaiAmount: summary.materaiAmount,
       grandTotal: summary.grandTotal,
       amountPaid: summary.amountPaid,
       remainingBalance: summary.remainingBalance,
+      totalHpp,
+      grossProfit,
       terbilang: summary.terbilang,
       notes,
       terms,
@@ -524,15 +598,35 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
             {/* Invoice Date */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Tanggal Invoice <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700">
+                  Tanggal Invoice <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex items-center gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setQuickInvoiceDate('today')}
+                    className="text-blue-600 hover:underline font-semibold"
+                  >
+                    Hari Ini
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuickInvoiceDate('yesterday')}
+                    className="text-slate-500 hover:text-slate-700"
+                  >
+                    Kemarin
+                  </button>
+                </div>
+              </div>
               <input
                 type="date"
                 value={invoiceDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
+              <span className="text-[10px] text-slate-400">Tanggal faktur diterbitkan</span>
             </div>
 
             {/* Delivery Date */}
@@ -546,19 +640,55 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                 onChange={(e) => setDeliveryDate(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
+              <span className="text-[10px] text-slate-400">Opsional jika ada serah terima</span>
             </div>
 
             {/* Due Date */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Jatuh Tempo (Due Date) <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700">
+                  Jatuh Tempo (Due Date) <span className="text-rose-500">*</span>
+                </label>
+                {dueDayDiff !== null && (
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                      dueDayDiff < 0
+                        ? 'bg-rose-100 text-rose-700'
+                        : dueDayDiff === 0
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {dueDayDiff === 0 ? 'Cash / Hari Ini' : `${dueDayDiff} Hari`}
+                  </span>
+                )}
+              </div>
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
+              {/* Quick Due Date Presets */}
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                <span className="text-[10px] text-slate-400 mr-0.5">Tempo:</span>
+                {[
+                  { label: '0h', days: 0 },
+                  { label: '7h', days: 7 },
+                  { label: '14h', days: 14 },
+                  { label: '30h', days: 30 },
+                  { label: '60h', days: 60 },
+                ].map((preset) => (
+                  <button
+                    key={preset.days}
+                    type="button"
+                    onClick={() => setQuickDueDays(preset.days)}
+                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-[10px] font-medium rounded-md transition-colors cursor-pointer"
+                  >
+                    +{preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -666,166 +796,198 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-3 min-w-[260px]">Barang / Jasa & Deskripsi Spesifikasi</th>
-                <th className="py-3 px-3 w-20 text-center">Qty</th>
-                <th className="py-3 px-3 w-24 text-center">Satuan</th>
-                <th className="py-3 px-3 w-36 text-right">Harga Satuan</th>
-                <th className="py-3 px-3 w-32 text-right">Diskon Item</th>
-                <th className="py-3 px-3 w-36 text-right">Total</th>
-                <th className="py-3 px-3 w-12 text-center">Aksi</th>
+                <th className="py-3 px-3 min-w-[240px]">Barang / Jasa & Deskripsi Spesifikasi</th>
+                <th className="py-3 px-2 w-16 text-center">Qty</th>
+                <th className="py-3 px-2 w-20 text-center">Satuan</th>
+                <th className="py-3 px-3 w-32 text-right bg-amber-50/50 text-amber-900">
+                  <span className="flex items-center justify-end gap-1 font-bold">
+                    <span>HPP / Modal</span>
+                  </span>
+                </th>
+                <th className="py-3 px-3 w-32 text-right">Harga Jual</th>
+                <th className="py-3 px-2 w-28 text-right">Diskon</th>
+                <th className="py-3 px-3 w-36 text-right">Total Jual</th>
+                <th className="py-3 px-2 w-10 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item, idx) => (
-                <tr key={item.id} className="align-top hover:bg-slate-50/50">
-                  <td className="py-3 px-3 text-center text-slate-400 font-semibold pt-4">
-                    {idx + 1}
-                  </td>
+              {items.map((item, idx) => {
+                const lineHpp = (Number(item.quantity) || 0) * (Number(item.costPrice) || 0);
+                const lineProfit = (Number(item.totalPrice) || 0) - lineHpp;
+                const lineMargin = (item.totalPrice || 0) > 0 ? (lineProfit / item.totalPrice) * 100 : 0;
 
-                  {/* Item Selection & Description */}
-                  <td className="py-3 px-3 space-y-2">
-                    {/* Catalog Quick Selector */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (!val) return;
-                          const [type, id] = val.split(':');
-                          handleSelectCatalogItem(idx, type as any, id);
-                        }}
-                        className="px-2.5 py-1 text-[11px] bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium"
-                        defaultValue=""
-                      >
-                        <option value="">⚡ Pilih Dari Master Data Katalog...</option>
-                        <optgroup label="-- BARANG (PRODUCTS) --">
-                          {products.map((p) => (
-                            <option key={p.id} value={`product:${p.id}`}>
-                              {p.code} - {p.name} ({formatRupiah(p.sellingPrice)})
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="-- JASA (SERVICES) --">
-                          {services.map((s) => (
-                            <option key={s.id} value={`service:${s.id}`}>
-                              {s.code} - {s.name} ({formatRupiah(s.price)})
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
+                return (
+                  <tr key={item.id} className="align-top hover:bg-slate-50/50">
+                    <td className="py-3 px-3 text-center text-slate-400 font-semibold pt-4">
+                      {idx + 1}
+                    </td>
 
-                    {/* Item Name Input */}
-                    <input
-                      type="text"
-                      value={item.name}
-                      onChange={(e) => handleItemFieldChange(idx, 'name', e.target.value)}
-                      placeholder="Nama Barang / Jasa..."
-                      className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                    {/* Item Selection & Description */}
+                    <td className="py-3 px-3 space-y-2">
+                      {/* Catalog Quick Selector */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const [type, id] = val.split(':');
+                            handleSelectCatalogItem(idx, type as any, id);
+                          }}
+                          className="px-2.5 py-1 text-[11px] bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium max-w-full"
+                          defaultValue=""
+                        >
+                          <option value="">⚡ Pilih Dari Master Data Katalog...</option>
+                          <optgroup label="-- BARANG (PRODUCTS) --">
+                            {products.map((p) => (
+                              <option key={p.id} value={`product:${p.id}`}>
+                                {p.code} - {p.name} (Jual: {formatRupiah(p.sellingPrice)} | Modal: {formatRupiah(p.costPrice || p.purchasePrice || 0)})
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="-- JASA (SERVICES) --">
+                            {services.map((s) => (
+                              <option key={s.id} value={`service:${s.id}`}>
+                                {s.code} - {s.name} (Jual: {formatRupiah(s.price)} | Modal: {formatRupiah(s.costPrice || 0)})
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
 
-                    {/* Multi-line Description Input */}
-                    <textarea
-                      rows={2}
-                      value={item.description}
-                      onChange={(e) => handleItemFieldChange(idx, 'description', e.target.value)}
-                      placeholder="Deskripsi rincian spesifikasi teknis, garansi, S/N (opsional)..."
-                      className="w-full px-3 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-slate-600 resize-y"
-                    />
-                  </td>
+                      {/* Item Name Input */}
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={(e) => handleItemFieldChange(idx, 'name', e.target.value)}
+                        placeholder="Nama Barang / Jasa..."
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
 
-                  {/* Quantity */}
-                  <td className="py-3 px-3">
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        handleItemFieldChange(idx, 'quantity', Math.max(1, Number(e.target.value)))
-                      }
-                      className="w-full text-center px-2 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                  </td>
+                      {/* Multi-line Description Input */}
+                      <textarea
+                        rows={2}
+                        value={item.description}
+                        onChange={(e) => handleItemFieldChange(idx, 'description', e.target.value)}
+                        placeholder="Deskripsi rincian spesifikasi teknis, garansi, S/N (opsional)..."
+                        className="w-full px-3 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-slate-600 resize-y"
+                      />
+                    </td>
 
-                  {/* Unit */}
-                  <td className="py-3 px-3">
-                    <input
-                      type="text"
-                      value={item.unit}
-                      onChange={(e) => handleItemFieldChange(idx, 'unit', e.target.value)}
-                      placeholder="unit/pcs"
-                      className="w-full text-center px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none"
-                    />
-                  </td>
+                    {/* Quantity */}
+                    <td className="py-3 px-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleItemFieldChange(idx, 'quantity', Math.max(1, Number(e.target.value)))
+                        }
+                        className="w-full text-center px-2 py-1.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </td>
 
-                  {/* Unit Price */}
-                  <td className="py-3 px-3">
-                    <input
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={item.unitPrice}
-                      onChange={(e) =>
-                        handleItemFieldChange(idx, 'unitPrice', Math.max(0, Number(e.target.value)))
-                      }
-                      className="w-full text-right px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                    <div className="text-[10px] text-right text-slate-400 mt-0.5">
-                      {formatRupiah(item.unitPrice)}
-                    </div>
-                  </td>
+                    {/* Unit */}
+                    <td className="py-3 px-2">
+                      <input
+                        type="text"
+                        value={item.unit}
+                        onChange={(e) => handleItemFieldChange(idx, 'unit', e.target.value)}
+                        placeholder="pcs"
+                        className="w-full text-center px-1.5 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none"
+                      />
+                    </td>
 
-                  {/* Item Discount */}
-                  <td className="py-3 px-3">
-                    <div className="flex items-center gap-1">
+                    {/* Cost Price / HPP */}
+                    <td className="py-3 px-3 bg-amber-50/30">
                       <input
                         type="number"
                         min="0"
-                        value={item.discountValue}
+                        step="1000"
+                        value={item.costPrice ?? 0}
                         onChange={(e) =>
-                          handleItemFieldChange(
-                            idx,
-                            'discountValue',
-                            Math.max(0, Number(e.target.value))
-                          )
+                          handleItemFieldChange(idx, 'costPrice', Math.max(0, Number(e.target.value)))
                         }
-                        className="w-full text-right px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none"
+                        className="w-full text-right px-2 py-1.5 bg-white border border-amber-200 rounded-xl font-medium text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                        title="Harga Pokok Penjualan / Modal per unit"
                       />
-                      <select
-                        value={item.discountType}
-                        onChange={(e) =>
-                          handleItemFieldChange(idx, 'discountType', e.target.value as any)
-                        }
-                        className="px-1.5 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-[11px] font-semibold"
-                      >
-                        <option value="percentage">%</option>
-                        <option value="nominal">Rp</option>
-                      </select>
-                    </div>
-                    {item.discountAmount > 0 && (
-                      <div className="text-[10px] text-right text-rose-600 mt-0.5">
-                        - {formatRupiah(item.discountAmount)}
+                      <div className="text-[10px] text-right text-amber-700/80 mt-0.5 font-mono">
+                        {formatRupiah(item.costPrice || 0)}
                       </div>
-                    )}
-                  </td>
+                    </td>
 
-                  {/* Line Total */}
-                  <td className="py-3 px-3 text-right pt-4">
-                    <div className="font-bold text-slate-900">{formatRupiah(item.totalPrice)}</div>
-                  </td>
+                    {/* Unit Price (Selling) */}
+                    <td className="py-3 px-3">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={item.unitPrice}
+                        onChange={(e) =>
+                          handleItemFieldChange(idx, 'unitPrice', Math.max(0, Number(e.target.value)))
+                        }
+                        className="w-full text-right px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                      <div className="text-[10px] text-right text-slate-400 mt-0.5">
+                        {formatRupiah(item.unitPrice)}
+                      </div>
+                    </td>
 
-                  {/* Delete Item */}
-                  <td className="py-3 px-3 text-center pt-3.5">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(idx)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Hapus baris item ini"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    {/* Item Discount */}
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.discountValue}
+                          onChange={(e) =>
+                            handleItemFieldChange(
+                              idx,
+                              'discountValue',
+                              Math.max(0, Number(e.target.value))
+                            )
+                          }
+                          className="w-full text-right px-1.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none"
+                        />
+                        <select
+                          value={item.discountType}
+                          onChange={(e) =>
+                            handleItemFieldChange(idx, 'discountType', e.target.value as any)
+                          }
+                          className="px-1 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-semibold"
+                        >
+                          <option value="percentage">%</option>
+                          <option value="nominal">Rp</option>
+                        </select>
+                      </div>
+                      {item.discountAmount > 0 && (
+                        <div className="text-[10px] text-right text-rose-600 mt-0.5">
+                          - {formatRupiah(item.discountAmount)}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Line Total & Profit */}
+                    <td className="py-3 px-3 text-right pt-3.5">
+                      <div className="font-bold text-slate-900">{formatRupiah(item.totalPrice)}</div>
+                      <div className={`text-[10px] font-medium mt-0.5 ${lineProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        Laba: {lineProfit >= 0 ? '+' : ''}{formatRupiah(lineProfit)} ({lineMargin.toFixed(0)}%)
+                      </div>
+                    </td>
+
+                    {/* Delete Item */}
+                    <td className="py-3 px-2 text-center pt-3.5">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Hapus baris item ini"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -996,23 +1158,15 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
               )}
             </div>
 
-            {/* 3. Taxable Base (DPP) */}
-            <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-100">
-              <span>Dasar Pengenaan Pajak (DPP):</span>
-              <span className="font-semibold text-slate-800">
-                {formatRupiah(summary.taxableBase)}
-              </span>
-            </div>
-
-            {/* 4. PPN Section */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 space-y-2">
+            {/* 3. PPN & Tax Scheme Section */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
                   <input
                     type="checkbox"
                     checked={isPpnActive}
                     onChange={(e) => setIsPpnActive(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded-md focus:ring-blue-500"
+                    className="w-4 h-4 text-indigo-600 rounded-md focus:ring-indigo-500"
                   />
                   <span>Kenakan PPN</span>
                 </label>
@@ -1025,22 +1179,103 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                       max="100"
                       value={ppnRate}
                       onChange={(e) => setPpnRate(Math.max(0, Number(e.target.value)))}
-                      className="w-14 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-right font-medium text-xs focus:outline-none"
+                      className="w-14 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-right font-bold text-xs focus:outline-none focus:border-indigo-600"
                     />
-                    <span className="font-semibold text-slate-600">%</span>
+                    <span className="font-bold text-slate-600">%</span>
                   </div>
                 )}
               </div>
 
               {isPpnActive && (
-                <div className="flex justify-between text-slate-800 text-[11px] font-medium pt-1 border-t border-slate-200/50">
-                  <span>Nilai PPN ({ppnRate}%):</span>
-                  <span className="font-bold text-slate-900">{formatRupiah(summary.ppnAmount)}</span>
+                <div className="pt-2 border-t border-slate-200/70 space-y-2.5">
+                  <div className="text-[11px] font-semibold text-slate-600 mb-1">
+                    Skema Input Harga Barang:
+                  </div>
+
+                  {/* Radio / Toggle for Inclusive vs Exclusive */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setTaxCalculationType('exclusive')}
+                      className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                        taxCalculationType === 'exclusive'
+                          ? 'bg-white border-indigo-600 ring-1 ring-indigo-500 font-bold text-indigo-900 shadow-2xs'
+                          : 'bg-slate-100/70 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${taxCalculationType === 'exclusive' ? 'bg-indigo-600' : 'bg-slate-300'}`} />
+                        <span>Harga Belum Termasuk PPN</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-normal mt-0.5 pl-3.5">
+                        PPN {ppnRate}% ditambahkan
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setTaxCalculationType('inclusive')}
+                      className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                        taxCalculationType === 'inclusive'
+                          ? 'bg-white border-emerald-600 ring-1 ring-emerald-500 font-bold text-emerald-900 shadow-2xs'
+                          : 'bg-slate-100/70 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${taxCalculationType === 'inclusive' ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                        <span>Harga Termasuk PPN</span>
+                      </div>
+                      <div className="text-[10px] text-emerald-700 font-normal mt-0.5 pl-3.5">
+                        DPP & PPN otomatis terpisah
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Dynamic Calculation Info Box */}
+                  {taxCalculationType === 'inclusive' ? (
+                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-[11px] space-y-1">
+                      <div className="font-bold text-emerald-900 flex items-center gap-1">
+                        <span>✓ Harga Termasuk Pajak (Include PPN)</span>
+                      </div>
+                      <div className="text-emerald-800 text-[10px] leading-relaxed">
+                        Nilai yang diinputkan adalah harga final. Sistem secara otomatis menghitung DPP dan PPN:
+                      </div>
+                      <div className="pt-1 flex justify-between border-t border-emerald-200/60 font-medium text-emerald-900">
+                        <span>Dasar Pengenaan Pajak (DPP):</span>
+                        <span className="font-mono font-bold">{formatRupiah(summary.taxableBase)}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-900 font-medium">
+                        <span>Nilai PPN ({ppnRate}%):</span>
+                        <span className="font-mono font-bold">{formatRupiah(summary.ppnAmount)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-[11px] space-y-1">
+                      <div className="flex justify-between text-slate-700">
+                        <span>Dasar Pengenaan Pajak (DPP):</span>
+                        <span className="font-mono font-semibold text-slate-900">{formatRupiah(summary.taxableBase)}</span>
+                      </div>
+                      <div className="flex justify-between text-indigo-900 font-medium">
+                        <span>Nilai PPN ({ppnRate}%):</span>
+                        <span className="font-mono font-bold text-indigo-950">+ {formatRupiah(summary.ppnAmount)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* 5. Materai Section */}
+            {/* If PPN is NOT active, still show simple DPP */}
+            {!isPpnActive && (
+              <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-100">
+                <span>Dasar Pengenaan Pajak (DPP):</span>
+                <span className="font-semibold text-slate-800">
+                  {formatRupiah(summary.taxableBase)}
+                </span>
+              </div>
+            )}
+
+            {/* 4. Materai Section */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
@@ -1097,6 +1332,43 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                 <div className="text-xs italic text-blue-100 font-medium leading-relaxed mt-0.5">
                   "{summary.terbilang}"
                 </div>
+              </div>
+            </div>
+
+            {/* 7. Profit & Loss / HPP Analysis Card (Internal Control) */}
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl space-y-2 text-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-emerald-200/60 font-bold text-emerald-900">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Analisis Laba Rugi Faktur (Internal)</span>
+                </span>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px]">
+                  Margin {internalProfitAnalysis.estMarginPercent.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="space-y-1 pt-0.5 text-slate-700">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Omzet Penjualan (DPP):</span>
+                  <span className="font-semibold text-slate-900">{formatRupiah(summary.taxableBase)}</span>
+                </div>
+                <div className="flex justify-between text-amber-800">
+                  <span>Total Biaya Modal (HPP):</span>
+                  <span className="font-semibold font-mono">- {formatRupiah(internalProfitAnalysis.totalCostHpp)}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-emerald-200/60 font-bold text-emerald-900 text-[13px]">
+                  <span>Estimasi Laba Kotor:</span>
+                  <span className="font-mono">
+                    {internalProfitAnalysis.estGrossProfit >= 0 ? '+' : ''}
+                    {formatRupiah(internalProfitAnalysis.estGrossProfit)}
+                  </span>
+                </div>
+                {isPpnActive && (
+                  <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
+                    <span>PPN ({ppnRate}%) Ditagihkan:</span>
+                    <span className="font-medium text-slate-700">{formatRupiah(summary.ppnAmount)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

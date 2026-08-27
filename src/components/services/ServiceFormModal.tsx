@@ -20,8 +20,6 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
   units,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const isEditing = !!service;
 
   const [code, setCode] = useState(service?.code || '');
@@ -30,11 +28,27 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
     service?.category || (categories[0]?.name || 'Jasa IT & Jaringan')
   );
   const [unit, setUnit] = useState(service?.unit || 'paket');
+  const [costPrice, setCostPrice] = useState(service?.costPrice || 0);
   const [price, setPrice] = useState(service?.price || 0);
   const [description, setDescription] = useState(service?.description || '');
-  const [isActive, setIsActive] = useState(service !== undefined ? service.isActive : true);
-
+  const [isActive, setIsActive] = useState(service?.isActive ?? true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setCode(service?.code || '');
+      setName(service?.name || '');
+      setCategory(service?.category || (categories[0]?.name || 'Jasa IT & Jaringan'));
+      setUnit(service?.unit || 'paket');
+      setCostPrice(service?.costPrice || 0);
+      setPrice(service?.price || 0);
+      setDescription(service?.description || '');
+      setIsActive(service?.isActive ?? true);
+      setErrorMsg('');
+    }
+  }, [isOpen, service, categories, units]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +67,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
         name: name.trim(),
         category,
         unit,
+        costPrice,
         price,
         description: description.trim(),
         isActive,
@@ -61,6 +76,9 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
     );
     onClose();
   };
+
+  const margin = price - costPrice;
+  const marginPercent = costPrice > 0 ? ((margin / costPrice) * 100).toFixed(1) : '100';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -133,31 +151,54 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Satuan Tarif</label>
-              <input
-                type="text"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                placeholder="paket / titik / sesi / bulan / lisensi..."
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
-              />
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">Satuan Tarif</label>
+            <input
+              type="text"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              placeholder="paket / titik / sesi / bulan / lisensi..."
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          {/* Pricing & Cost Box */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Biaya Modal / HPP (Rp)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="10000"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono text-slate-800 focus:outline-none"
+                />
+                <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(costPrice)}</div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-900 mb-1">
+                  Tarif Harga Jual (Rp) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="10000"
+                  value={price}
+                  onChange={(e) => setPrice(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-purple-700 font-mono text-sm focus:outline-none"
+                />
+                <div className="text-[10px] text-purple-600 font-medium mt-0.5">{formatRupiah(price)}</div>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-slate-900 mb-1">
-                Tarif Harga Standar (Rp) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="10000"
-                value={price}
-                onChange={(e) => setPrice(Math.max(0, Number(e.target.value)))}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-purple-700 font-mono text-sm focus:outline-none"
-              />
-              <div className="text-[10px] text-purple-600 font-medium mt-0.5">{formatRupiah(price)}</div>
+            <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 text-slate-600">
+              <span>Estimasi Margin Keuntungan Jasa:</span>
+              <span className="font-bold text-emerald-700">
+                {formatRupiah(margin)} ({marginPercent}%)
+              </span>
             </div>
           </div>
 

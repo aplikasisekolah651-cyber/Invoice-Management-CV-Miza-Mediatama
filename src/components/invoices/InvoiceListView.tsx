@@ -28,18 +28,32 @@ import { ExportService } from '../../services/exportService';
 
 interface InvoiceListViewProps {
   invoices: Invoice[];
+  customers?: Customer[];
+  salesList?: any[];
   userRole: RoleType;
-  onNavigate: (view: any, data?: any) => void;
-  onOpenRecordPayment: (invoice: Invoice) => void;
-  onDuplicateInvoice: (invoice: Invoice) => void;
-  onCancelInvoice: (invoice: Invoice) => void;
-  onDeleteInvoice: (invoice: Invoice) => void;
+  onNavigate?: (view: any, data?: any) => void;
+  onCreateInvoice?: () => void;
+  onViewInvoice?: (invoice: Invoice) => void;
+  onEditInvoice?: (invoice: Invoice) => void;
+  onPreviewInvoice?: (invoice: Invoice) => void;
+  onRecordPayment?: (invoice: Invoice) => void;
+  onOpenRecordPayment?: (invoice: Invoice) => void;
+  onDuplicateInvoice?: (invoice: Invoice) => void;
+  onCancelInvoice?: (invoice: Invoice) => void;
+  onDeleteInvoice?: (invoice: Invoice) => void;
 }
 
 export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
   invoices,
+  customers = [],
+  salesList = [],
   userRole,
   onNavigate,
+  onCreateInvoice,
+  onViewInvoice,
+  onEditInvoice,
+  onPreviewInvoice,
+  onRecordPayment,
   onOpenRecordPayment,
   onDuplicateInvoice,
   onCancelInvoice,
@@ -54,6 +68,66 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
   const [dateFilterStart, setDateFilterStart] = useState<string>('');
   const [dateFilterEnd, setDateFilterEnd] = useState<string>('');
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+
+  const handleCreate = () => {
+    if (onCreateInvoice) {
+      onCreateInvoice();
+    } else if (onNavigate) {
+      onNavigate('invoice_create');
+    }
+  };
+
+  const handlePreview = (inv: Invoice) => {
+    if (onPreviewInvoice) {
+      onPreviewInvoice(inv);
+    } else if (onNavigate) {
+      onNavigate('invoice_print', inv);
+    }
+  };
+
+  const handleDetail = (inv: Invoice) => {
+    if (onViewInvoice) {
+      onViewInvoice(inv);
+    } else if (onNavigate) {
+      onNavigate('invoice_detail', inv);
+    }
+  };
+
+  const handleEdit = (inv: Invoice) => {
+    if (onEditInvoice) {
+      onEditInvoice(inv);
+    } else if (onNavigate) {
+      onNavigate('invoice_edit', inv);
+    }
+  };
+
+  const handlePayment = (inv: Invoice) => {
+    if (onOpenRecordPayment) {
+      onOpenRecordPayment(inv);
+    } else if (onRecordPayment) {
+      onRecordPayment(inv);
+    } else if (onNavigate) {
+      onNavigate('invoice_payment', inv);
+    }
+  };
+
+  const handleDuplicate = (inv: Invoice) => {
+    if (onDuplicateInvoice) {
+      onDuplicateInvoice(inv);
+    }
+  };
+
+  const handleCancel = (inv: Invoice) => {
+    if (onCancelInvoice) {
+      onCancelInvoice(inv);
+    }
+  };
+
+  const handleDelete = (inv: Invoice) => {
+    if (onDeleteInvoice) {
+      onDeleteInvoice(inv);
+    }
+  };
 
   // Filter tabs definition
   const tabs = [
@@ -149,7 +223,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
 
           {!isManager && (
             <button
-              onClick={() => onNavigate('invoice-form')}
+              onClick={handleCreate}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -279,7 +353,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                       </p>
                       {!isManager && (
                         <button
-                          onClick={() => onNavigate('invoice-form')}
+                          onClick={handleCreate}
                           className="mt-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-xs shadow-sm cursor-pointer"
                         >
                           + Buat Invoice Baru
@@ -300,7 +374,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                       </td>
                       <td className="py-3.5 px-4">
                         <button
-                          onClick={() => onNavigate('invoice-preview', inv)}
+                          onClick={() => handleDetail(inv)}
                           className="font-bold text-blue-600 hover:text-blue-800 text-left cursor-pointer"
                         >
                           {inv.invoiceNumber}
@@ -354,7 +428,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                         <div className="flex items-center justify-center gap-1">
                           {/* Preview / Cetak */}
                           <button
-                            onClick={() => onNavigate('invoice-preview', inv)}
+                            onClick={() => handlePreview(inv)}
                             className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                             title="Preview & Cetak A4"
                           >
@@ -363,7 +437,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
 
                           {/* Detail view */}
                           <button
-                            onClick={() => onNavigate('invoice-detail', inv)}
+                            onClick={() => handleDetail(inv)}
                             className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
                             title="Detail & Histori Pembayaran"
                           >
@@ -373,7 +447,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                           {/* Record Payment */}
                           {inv.remainingBalance > 0 && inv.status !== 'cancelled' && !isManager && (
                             <button
-                              onClick={() => onOpenRecordPayment(inv)}
+                              onClick={() => handlePayment(inv)}
                               className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                               title="Catat Pembayaran Masuk"
                             >
@@ -384,7 +458,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                           {/* Edit */}
                           {canEdit && !isManager && (
                             <button
-                              onClick={() => onNavigate('invoice-form', inv)}
+                              onClick={() => handleEdit(inv)}
                               className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                               title="Edit Invoice"
                             >
@@ -395,7 +469,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                           {/* Duplicate */}
                           {!isManager && (
                             <button
-                              onClick={() => onDuplicateInvoice(inv)}
+                              onClick={() => handleDuplicate(inv)}
                               className="p-1.5 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
                               title="Duplikat Invoice Ini"
                             >
@@ -406,7 +480,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                           {/* Void / Cancel */}
                           {inv.status !== 'cancelled' && !isManager && (
                             <button
-                              onClick={() => onCancelInvoice(inv)}
+                              onClick={() => handleCancel(inv)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               title="Batalkan (Void) Invoice"
                             >
@@ -417,7 +491,7 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                           {/* Delete (Admin only) */}
                           {isAdmin && (
                             <button
-                              onClick={() => onDeleteInvoice(inv)}
+                              onClick={() => handleDelete(inv)}
                               className="p-1.5 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                               title="Hapus Invoice"
                             >

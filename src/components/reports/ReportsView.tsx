@@ -40,6 +40,7 @@ interface ReportsViewProps {
   salesList: SalesPerson[];
   auditLogs: AuditLog[];
   userRole: RoleType;
+  initialTab?: string;
   onViewInvoice: (invoiceId: string) => void;
 }
 
@@ -52,18 +53,25 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   salesList,
   auditLogs,
   userRole,
+  initialTab = 'profit-loss',
   onViewInvoice,
 }) => {
   const [reportTab, setReportTab] = useState<
-    'sales' | 'aging' | 'cash' | 'products' | 'audit'
-  >('sales');
+    'profit-loss' | 'sales' | 'ppn' | 'aging' | 'cash' | 'products' | 'audit'
+  >(() => {
+    if (initialTab === 'reports-profit-loss' || initialTab === 'profit-loss') return 'profit-loss';
+    if (initialTab === 'reports-sales' || initialTab === 'sales') return 'sales';
+    if (initialTab === 'reports-receivables' || initialTab === 'aging') return 'aging';
+    if (initialTab === 'reports-ppn' || initialTab === 'ppn') return 'ppn';
+    return 'profit-loss';
+  });
 
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('all');
   const [selectedSalesId, setSelectedSalesId] = useState('all');
 
-  // Filtered invoices for sales report
+  // Filtered invoices for financial reports
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       if (inv.status === 'cancelled') return false;
@@ -74,6 +82,62 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       return true;
     });
   }, [invoices, selectedCustomerId, selectedSalesId, dateStart, dateEnd]);
+
+  // Financial Recap: Omzet, HPP, Laba Rugi, PPN
+  const financialRecap = useMemo(() => {
+    let totalDpp = 0;
+    let totalPpn = 0;
+    let totalGrandTotal = 0;
+    let totalHpp = 0;
+    let totalPaid = 0;
+    let totalUnpaid = 0;
+
+    const invoiceRecaps = filteredInvoices.map((inv) => {
+      const dpp = inv.taxableBase || inv.subtotal;
+      const ppn = inv.isPpnActive ? inv.ppnAmount : 0;
+      const grand = inv.grandTotal;
+      const hpp =
+        inv.totalHpp !== undefined && inv.totalHpp > 0
+          ? inv.totalHpp
+          : inv.items.reduce(
+              (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
+              0
+            );
+      const grossProfit = dpp - hpp;
+      const marginPct = dpp > 0 ? (grossProfit / dpp) * 100 : 0;
+
+      totalDpp += dpp;
+      totalPpn += ppn;
+      totalGrandTotal += grand;
+      totalHpp += hpp;
+      totalPaid += inv.amountPaid;
+      totalUnpaid += inv.remainingBalance;
+
+      return {
+        ...inv,
+        dpp,
+        ppn,
+        hpp,
+        grossProfit,
+        marginPct,
+      };
+    });
+
+    const netProfit = totalDpp - totalHpp;
+    const overallMarginPct = totalDpp > 0 ? (netProfit / totalDpp) * 100 : 0;
+
+    return {
+      totalDpp,
+      totalPpn,
+      totalGrandTotal,
+      totalHpp,
+      netProfit,
+      overallMarginPct,
+      totalPaid,
+      totalUnpaid,
+      invoiceRecaps,
+    };
+  }, [filteredInvoices]);
 
   // Sales totals
   const totalOmzet = filteredInvoices.reduce((acc, i) => acc + i.grandTotal, 0);
@@ -160,10 +224,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   // Handle excel export of currently selected report
   const handleExportCurrentReport = () => {
-    if (reportTab === 'sales') {
+    if (reportTab === 'profit-loss') {
+      ExportService.exportProfitLossToExcel(
+        financialRecap.invoiceRecaps,
+        `Laporan_Laba_Rugi_CV_Miza_${new Date().toISOString().split('T')[0]}.xlsx`
+      );
+    } else if (reportTab === 'sales' || reportTab === 'ppn') {
       ExportService.exportInvoicesToExcel(
         filteredInvoices,
-        `Laporan_Penjualan_CV_Miza_${new Date().toISOString().split('T')[0]}.xlsx`
+        `Laporan_Penjualan_PPN_CV_Miza_${new Date().toISOString().split('T')[0]}.xlsx`
       );
     } else if (reportTab === 'cash') {
       ExportService.exportPaymentsToExcel(
@@ -198,7 +267,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             Laporan Keuangan & Analitik Bisnis
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Rekapitulasi penjualan, umur piutang (Aging AR), arus kas, dan jejak audit
+            Rekapitulasi omzet, harga modal (HPP), laba rugi, pajak PPN, arus kas, dan umur piutang
           </p>
         </div>
 
@@ -207,27 +276,51 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all self-start sm:self-center cursor-pointer"
         >
           <Download className="w-4 h-4" />
-          <span>Export Laporan Ini (.xlsx)</span>
+          <span>Export Excel (.xlsx)</span>
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 text-xs font-semibold">
+      <div className="flex flex-wrap items-center gap-1 sm:gap-2 border-b border-slate-200 text-xs font-semibold">
+        <button
+          onClick={() => setReportTab('profit-loss')}
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
+            reportTab === 'profit-loss'
+              ? 'border-emerald-600 text-emerald-700 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Laporan Laba Rugi (HPP)</span>
+        </button>
+
         <button
           onClick={() => setReportTab('sales')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'sales'
               ? 'border-blue-600 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <TrendingUp className="w-4 h-4" />
+          <BarChart3 className="w-4 h-4" />
           <span>Laporan Penjualan (Omzet)</span>
         </button>
 
         <button
+          onClick={() => setReportTab('ppn')}
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
+            reportTab === 'ppn'
+              ? 'border-indigo-600 text-indigo-700 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <DollarSign className="w-4 h-4" />
+          <span>Rekap PPN & Faktur Pajak</span>
+        </button>
+
+        <button
           onClick={() => setReportTab('aging')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'aging'
               ? 'border-amber-600 text-amber-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -239,9 +332,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         <button
           onClick={() => setReportTab('cash')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'cash'
-              ? 'border-emerald-600 text-emerald-700 font-bold'
+              ? 'border-teal-600 text-teal-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
@@ -251,7 +344,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         <button
           onClick={() => setReportTab('products')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'products'
               ? 'border-purple-600 text-purple-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -263,7 +356,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
         <button
           onClick={() => setReportTab('audit')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'audit'
               ? 'border-slate-800 text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -334,6 +427,295 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 0: LAPORAN LABA RUGI & REKAP OMZET/HPP */}
+      {reportTab === 'profit-loss' && (
+        <div className="space-y-6">
+          {/* Top KPI Cards for Laba Rugi */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Omzet Penjualan Bersih (DPP)
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-mono">
+                {formatRupiah(financialRecap.totalDpp)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">
+                Dasar pengenaan sebelum PPN ({filteredInvoices.length} Faktur)
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs bg-amber-50/20">
+              <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
+                Total Biaya Modal (HPP)
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-amber-900 mt-1 font-mono">
+                {formatRupiah(financialRecap.totalHpp)}
+              </div>
+              <div className="text-[11px] text-amber-700 mt-0.5">
+                Akumulasi harga beli pengadaan barang & modal jasa
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-xs bg-emerald-50/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+                  Estimasi Laba Kotor
+                </span>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-md text-[10px]">
+                  Margin {financialRecap.overallMarginPct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1 font-mono">
+                {financialRecap.netProfit >= 0 ? '+' : ''}{formatRupiah(financialRecap.netProfit)}
+              </div>
+              <div className="text-[11px] text-emerald-700 mt-0.5">
+                (Omzet DPP - Total HPP Modal)
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-indigo-200 shadow-xs bg-indigo-50/20">
+              <span className="text-xs font-semibold text-indigo-800 uppercase tracking-wider">
+                Total PPN Terpungut
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-indigo-900 mt-1 font-mono">
+                {formatRupiah(financialRecap.totalPpn)}
+              </div>
+              <div className="text-[11px] text-indigo-700 mt-0.5">
+                Kewajiban pajak pertambahan nilai
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Invoices Profit/Loss Breakdown Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Rekapitulasi Laba Rugi Per Faktur Tagihan
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Daftar transaksi lengkap dengan perhitungan HPP, margin keuntungan, dan status pelunasan
+                </p>
+              </div>
+              <div className="text-xs font-semibold text-slate-600">
+                Total: <span className="text-emerald-700 font-bold">{formatRupiah(financialRecap.netProfit)}</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
+                  <tr>
+                    <th className="py-3.5 px-4 w-10 text-center">No</th>
+                    <th className="py-3.5 px-4">No. Invoice & Tanggal</th>
+                    <th className="py-3.5 px-4">Pelanggan</th>
+                    <th className="py-3.5 px-4 text-right">Omzet DPP</th>
+                    <th className="py-3.5 px-4 text-right">Modal (HPP)</th>
+                    <th className="py-3.5 px-4 text-right">Laba Kotor</th>
+                    <th className="py-3.5 px-4 text-center">Margin</th>
+                    <th className="py-3.5 px-4 text-right">PPN</th>
+                    <th className="py-3.5 px-4 text-right">Grand Total</th>
+                    <th className="py-3.5 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {financialRecap.invoiceRecaps.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                        Tidak ada transaksi ditemukan pada periode ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    financialRecap.invoiceRecaps.map((inv, idx) => (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            onClick={() => onViewInvoice(inv.id)}
+                            className="font-mono font-bold text-blue-700 hover:underline cursor-pointer block"
+                          >
+                            {inv.invoiceNumber}
+                          </button>
+                          <span className="text-[11px] text-slate-500">
+                            {formatShortDate(inv.invoiceDate)}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-900">
+                          {inv.customerSnapshot?.companyName || inv.customerSnapshot?.name}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-900">
+                          {formatRupiah(inv.dpp)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-amber-800">
+                          {formatRupiah(inv.hpp)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
+                          {inv.grossProfit >= 0 ? '+' : ''}{formatRupiah(inv.grossProfit)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              inv.marginPct >= 20
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : inv.marginPct >= 10
+                                ? 'bg-blue-100 text-blue-800'
+                                : inv.marginPct >= 0
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {inv.marginPct.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                          {formatRupiah(inv.ppn)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                          {formatRupiah(inv.grandTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => onViewInvoice(inv.id)}
+                            className="px-2.5 py-1 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Rincian
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {financialRecap.invoiceRecaps.length > 0 && (
+                  <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
+                    <tr>
+                      <td colSpan={3} className="py-3.5 px-4 text-right text-slate-900">
+                        TOTAL KESELURUHAN:
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-900">
+                        {formatRupiah(financialRecap.totalDpp)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-amber-900">
+                        {formatRupiah(financialRecap.totalHpp)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-emerald-800 text-sm">
+                        {formatRupiah(financialRecap.netProfit)}
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-emerald-800">
+                        {financialRecap.overallMarginPct.toFixed(1)}%
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                        {formatRupiah(financialRecap.totalPpn)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-blue-900 text-sm">
+                        {formatRupiah(financialRecap.totalGrandTotal)}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: REKAPITULASI PPN & FAKTUR PAJAK */}
+      {reportTab === 'ppn' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500">Total Dasar Pengenaan Pajak (DPP)</span>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1 font-mono">
+                {formatRupiah(financialRecap.totalDpp)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Nilai transaksi kena pajak</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-indigo-200 shadow-xs bg-indigo-50/20">
+              <span className="text-xs font-semibold text-indigo-800">Total PPN Terpungut (Keluaran)</span>
+              <div className="text-xl sm:text-2xl font-black text-indigo-700 mt-1 font-mono">
+                {formatRupiah(financialRecap.totalPpn)}
+              </div>
+              <div className="text-[11px] text-indigo-600 mt-0.5">Tarif 11% / 12% sesuai regulasi</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500">Jumlah Faktur dengan PPN</span>
+              <div className="text-xl sm:text-2xl font-bold text-blue-900 mt-1">
+                {filteredInvoices.filter((i) => i.isPpnActive && i.ppnAmount > 0).length} Faktur
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Dokumen faktur komersial & pajak</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-sm">
+              Daftar Rekapitulasi Pajak Pertambahan Nilai (PPN)
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
+                  <tr>
+                    <th className="py-3.5 px-4 w-10 text-center">No</th>
+                    <th className="py-3.5 px-4">No. Invoice</th>
+                    <th className="py-3.5 px-4">Tanggal</th>
+                    <th className="py-3.5 px-4">Nama Pelanggan / WP</th>
+                    <th className="py-3.5 px-4">NPWP</th>
+                    <th className="py-3.5 px-4 text-center">Tarif PPN</th>
+                    <th className="py-3.5 px-4 text-right">DPP (Rp)</th>
+                    <th className="py-3.5 px-4 text-right">PPN Terpungut (Rp)</th>
+                    <th className="py-3.5 px-4 text-right">Total Tagihan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredInvoices.map((inv, idx) => (
+                    <tr key={inv.id} className="hover:bg-slate-50">
+                      <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-700">
+                        {formatShortDate(inv.invoiceDate)}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900">
+                        {inv.customerSnapshot?.companyName || inv.customerSnapshot?.name}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600">
+                        {inv.customerSnapshot?.npwp || '-'}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            inv.isPpnActive
+                              ? 'bg-indigo-100 text-indigo-800'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {inv.isPpnActive ? `${inv.ppnRate || 11}%` : 'Non-PPN'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-800">
+                        {formatRupiah(inv.taxableBase || inv.subtotal)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-indigo-700">
+                        {formatRupiah(inv.isPpnActive ? inv.ppnAmount : 0)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                        {formatRupiah(inv.grandTotal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

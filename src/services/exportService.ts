@@ -69,6 +69,67 @@ export const ExportService = {
   },
 
   /**
+   * Export Profit & Loss (Laba Rugi & HPP) to Excel
+   */
+  exportProfitLossToExcel(
+    invoicesOrRecaps: any[] | { invoices: Invoice[]; startDate?: string; endDate?: string; fileName?: string },
+    optionalFileName = 'Laporan_Laba_Rugi_Miza.xlsx'
+  ) {
+    let list: any[] = [];
+    let fileName = optionalFileName;
+    if (Array.isArray(invoicesOrRecaps)) {
+      list = invoicesOrRecaps;
+    } else if (invoicesOrRecaps && typeof invoicesOrRecaps === 'object' && (invoicesOrRecaps as any).invoices) {
+      list = (invoicesOrRecaps as any).invoices;
+      if ((invoicesOrRecaps as any).fileName) fileName = (invoicesOrRecaps as any).fileName;
+    }
+
+    const data = list.map((inv, idx) => {
+      const invHpp =
+        inv.hpp !== undefined
+          ? inv.hpp
+          : (inv.items || []).reduce((acc: number, it: any) => {
+              const q = Number(it.quantity) || 0;
+              const c = Number(it.costPrice) || 0;
+              return acc + q * c;
+            }, 0);
+      const omzetNeto =
+        inv.dpp !== undefined ? inv.dpp : Number(inv.taxableBase) || Number(inv.subtotal) || 0;
+      const labaKotor = inv.grossProfit !== undefined ? inv.grossProfit : omzetNeto - invHpp;
+      const marginPct =
+        inv.marginPct !== undefined
+          ? `${Number(inv.marginPct).toFixed(1)}%`
+          : omzetNeto > 0
+          ? `${((labaKotor / omzetNeto) * 100).toFixed(1)}%`
+          : '0%';
+
+      return {
+        No: idx + 1,
+        'No. Invoice': inv.invoiceNumber,
+        Tanggal: formatShortDate(inv.invoiceDate),
+        Pelanggan: inv.customerSnapshot?.companyName || inv.customerSnapshot?.name || '-',
+        'Sales / PIC': inv.salesSnapshot?.name || '-',
+        'Omzet Bruto': inv.subtotal,
+        Diskon: inv.invoiceDiscountAmount,
+        'Omzet Neto (DPP)': omzetNeto,
+        'Total HPP / Modal': invHpp,
+        'Laba Kotor': labaKotor,
+        'Margin Laba': marginPct,
+        'PPN Terkumpul': inv.isPpnActive ? inv.ppnAmount : 0,
+        'Grand Total Tagihan': inv.grandTotal,
+        'Kas Diterima': inv.amountPaid,
+        'Sisa Piutang': inv.remainingBalance,
+        Status: (inv.status || '').toUpperCase(),
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Laporan Laba Rugi');
+    XLSX.writeFile(workbook, fileName);
+  },
+
+  /**
    * Export Receivables Aging Report to Excel
    */
   exportReceivablesReportToExcel(params: {
@@ -179,6 +240,100 @@ export const ExportService = {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Barang');
     XLSX.writeFile(workbook, fileName);
+  },
+
+  /**
+   * Download Template Excel for Customer Import
+   */
+  downloadCustomerTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
+    const sampleData = [
+      {
+        'Kode Pelanggan': 'CUST-001',
+        'Nama Kontak': 'Drs. H. Ahmad Fauzi, M.Pd.',
+        'Nama Perusahaan': 'SMK Negeri 2 Bantul',
+        Alamat: 'Jl. Imogiri Barat Km. 7, Bangunharjo',
+        Kota: 'Bantul',
+        Provinsi: 'D.I. Yogyakarta',
+        'Kode Pos': '55187',
+        NPWP: '00.123.456.7-543.000',
+        Telepon: '081234567890',
+        Email: 'smkn2bantul@gmail.com',
+        'Kontak Person': 'Pak Ahmad Fauzi (Kepala Sekolah)',
+        Catatan: 'Instansi Pendidikan Negeri / SIPLah',
+      },
+      {
+        'Kode Pelanggan': 'CUST-002',
+        'Nama Kontak': 'Ir. Hendra Setiawan',
+        'Nama Perusahaan': 'PT. Global Indo Prima',
+        Alamat: 'Jl. Ringroad Timur No. 88',
+        Kota: 'Sleman',
+        Provinsi: 'D.I. Yogyakarta',
+        'Kode Pos': '55281',
+        NPWP: '01.987.654.3-541.000',
+        Telepon: '085712349988',
+        Email: 'procurement@globalindoprima.co.id',
+        'Kontak Person': 'Ibu Maya (Divisi Pengadaan)',
+        Catatan: 'Mitra Perusahaan Swasta B2B Term of Payment 30 hari',
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template_Pelanggan');
+
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, 'Template_Import_Pelanggan.csv', { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, 'Template_Import_Pelanggan.xlsx');
+    }
+  },
+
+  /**
+   * Download Template Excel for Product Import
+   */
+  downloadProductTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
+    const sampleData = [
+      {
+        'Kode Barang': 'PRD-001',
+        SKU: 'LAP-ASUS-I5',
+        'Nama Barang': 'Laptop ASUS ExpertBook B1400 (Core i5 16GB SSD 512GB)',
+        Kategori: 'Komputer & IT',
+        Satuan: 'Unit',
+        'Harga Beli': 8500000,
+        'Harga Jual': 10250000,
+        Deskripsi: 'Garansi resmi 2 tahun, bonus tas laptop & mouse optik',
+      },
+      {
+        'Kode Barang': 'PRD-002',
+        'SKU': 'PRT-EPSON-L3210',
+        'Nama Barang': 'Printer Epson EcoTank L3210 All-in-One Ink Tank',
+        Kategori: 'Hardware & Percetakan',
+        Satuan: 'Unit',
+        'Harga Beli': 2100000,
+        'Harga Jual': 2550000,
+        Deskripsi: 'Print, Scan, Copy. Termasuk tinta original set',
+      },
+      {
+        'Kode Barang': 'PRD-003',
+        SKU: 'PPR-A4-75G',
+        'Nama Barang': 'Kertas HVS PaperOne A4 75 Gsm (1 Box / 5 Rim)',
+        Kategori: 'ATK & Kertas',
+        Satuan: 'Box',
+        'Harga Beli': 185000,
+        'Harga Jual': 225000,
+        Deskripsi: 'Kertas putih bersih presisi tinggi untuk fotokopi & kantor',
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template_Barang');
+
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, 'Template_Import_Barang.csv', { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, 'Template_Import_Barang.xlsx');
+    }
   },
 
   // --- EXCEL IMPORTS ---

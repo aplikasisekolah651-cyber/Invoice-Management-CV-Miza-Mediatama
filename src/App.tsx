@@ -661,7 +661,7 @@ export default function App() {
             if (view === 'invoice-preview') target = 'invoice_print';
             if (view === 'categories' || view === 'units' || view === 'sales' || view === 'products' || view === 'services' || view === 'masters') target = 'catalog';
             if (view === 'users' || view === 'backup' || view === 'audit-log') target = 'settings';
-            if (view.startsWith('reports')) target = 'reports';
+            if (view === 'reports' || view.startsWith('reports-')) target = view;
 
             setCurrentView(target);
             setIsMobileMenuOpen(false);
@@ -722,6 +722,20 @@ export default function App() {
               products={products}
               services={services}
               userRole={currentUser.role}
+              onNavigate={(view, data) => {
+                if (view === 'invoice-form' || view === 'invoice_create') {
+                  if (data) handleEditInvoice(data);
+                  else handleCreateInvoice();
+                } else if (view === 'invoice-detail' || view === 'invoice_detail') {
+                  if (data) handleViewInvoiceDetail(data);
+                  else setCurrentView('invoices');
+                } else if (view === 'invoice-preview' || view === 'invoice_print') {
+                  if (data) handlePreviewInvoice(data);
+                  else setCurrentView('invoices');
+                } else {
+                  setCurrentView(view);
+                }
+              }}
               onCreateInvoice={handleCreateInvoice}
               onViewAllInvoices={() => setCurrentView('invoices')}
               onViewInvoice={handleViewInvoiceDetail}
@@ -736,6 +750,20 @@ export default function App() {
               customers={customers}
               salesList={salesList}
               userRole={currentUser.role}
+              onNavigate={(view, data) => {
+                if (view === 'invoice-form' || view === 'invoice_create') {
+                  if (data) handleEditInvoice(data);
+                  else handleCreateInvoice();
+                } else if (view === 'invoice-detail' || view === 'invoice_detail') {
+                  if (data) handleViewInvoiceDetail(data);
+                  else setCurrentView('invoices');
+                } else if (view === 'invoice-preview' || view === 'invoice_print') {
+                  if (data) handlePreviewInvoice(data);
+                  else setCurrentView('invoices');
+                } else {
+                  setCurrentView(view);
+                }
+              }}
               onCreateInvoice={handleCreateInvoice}
               onViewInvoice={handleViewInvoiceDetail}
               onEditInvoice={handleEditInvoice}
@@ -770,6 +798,7 @@ export default function App() {
               invoice={selectedInvoice}
               payments={payments}
               userRole={currentUser.role}
+              company={company}
               onBack={() => setCurrentView('invoices')}
               onPreviewPrint={() => setCurrentView('invoice_print')}
               onRecordPayment={() => handleOpenPaymentModal(selectedInvoice)}
@@ -842,7 +871,7 @@ export default function App() {
           )}
 
           {/* 11. FINANCIAL & AGING REPORTS VIEW */}
-          {currentView === 'reports' && (
+          {(currentView === 'reports' || currentView.startsWith('reports-')) && (
             <ReportsView
               invoices={invoices}
               payments={payments}
@@ -852,6 +881,7 @@ export default function App() {
               salesList={salesList}
               auditLogs={auditLogs}
               userRole={currentUser.role}
+              initialTab={currentView}
               onViewInvoice={handleViewInvoiceDetail}
             />
           )}

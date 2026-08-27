@@ -23,8 +23,6 @@ export const PaymentFormModal: React.FC<PaymentFormModalProps> = ({
   currentUser,
   onPaymentSaved,
 }) => {
-  if (!isOpen) return null;
-
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Invoices eligible for payment (unpaid or partial or overdue)
@@ -49,12 +47,32 @@ export const PaymentFormModal: React.FC<PaymentFormModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // Sync state whenever modal opens or targetInvoice changes
+  useEffect(() => {
+    if (isOpen) {
+      const initialInvId = targetInvoice?.id || (payableInvoices.length > 0 ? payableInvoices[0].id : '');
+      setSelectedInvoiceId(initialInvId);
+      const inv = allInvoices.find((i) => i.id === initialInvId) || targetInvoice;
+      setAmount(inv?.remainingBalance || 0);
+      setPaymentDate(todayStr);
+      setPaymentMethod('Transfer Bank');
+      setBankAccountId(
+        company.bankAccounts.find((b) => b.isDefault)?.id || company.bankAccounts[0]?.id || ''
+      );
+      setReferenceNumber('');
+      setNotes('');
+      setErrorMsg('');
+    }
+  }, [isOpen, targetInvoice?.id]);
+
   // Update amount when active invoice changes
   useEffect(() => {
     if (activeInvoice) {
       setAmount(activeInvoice.remainingBalance);
     }
-  }, [selectedInvoiceId, activeInvoice]);
+  }, [selectedInvoiceId]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

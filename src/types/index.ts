@@ -1,10 +1,99 @@
 export type RoleType = 'admin' | 'operator' | 'manager';
 
+export interface UserPermissions {
+  // Faktur / Invoices
+  canCreateInvoice: boolean;
+  canEditInvoice: boolean;
+  canDeleteInvoice: boolean;
+  canCancelInvoice: boolean;
+  // Pembayaran / Payments
+  canRecordPayment: boolean;
+  canDeletePayment: boolean;
+  // Master Data & Katalog
+  canManageCustomers: boolean;
+  canManageProducts: boolean;
+  canManageServices: boolean;
+  canManageSales: boolean;
+  // Laporan / Reports
+  canViewReports: boolean;
+  canExportReports: boolean;
+  // Pengaturan & Administrasi
+  canManageCompanySettings: boolean;
+  canManageInvoiceSettings: boolean;
+  canManageUsers: boolean;
+  canBackupRestore: boolean;
+}
+
+export function getDefaultPermissions(role: RoleType): UserPermissions {
+  if (role === 'admin') {
+    return {
+      canCreateInvoice: true,
+      canEditInvoice: true,
+      canDeleteInvoice: true,
+      canCancelInvoice: true,
+      canRecordPayment: true,
+      canDeletePayment: true,
+      canManageCustomers: true,
+      canManageProducts: true,
+      canManageServices: true,
+      canManageSales: true,
+      canViewReports: true,
+      canExportReports: true,
+      canManageCompanySettings: true,
+      canManageInvoiceSettings: true,
+      canManageUsers: true,
+      canBackupRestore: true,
+    };
+  }
+  if (role === 'manager') {
+    return {
+      canCreateInvoice: false,
+      canEditInvoice: false,
+      canDeleteInvoice: false,
+      canCancelInvoice: false,
+      canRecordPayment: false,
+      canDeletePayment: false,
+      canManageCustomers: false,
+      canManageProducts: false,
+      canManageServices: false,
+      canManageSales: false,
+      canViewReports: true,
+      canExportReports: true,
+      canManageCompanySettings: false,
+      canManageInvoiceSettings: false,
+      canManageUsers: false,
+      canBackupRestore: false,
+    };
+  }
+  // operator
+  return {
+    canCreateInvoice: true,
+    canEditInvoice: true,
+    canDeleteInvoice: false,
+    canCancelInvoice: false,
+    canRecordPayment: true,
+    canDeletePayment: false,
+    canManageCustomers: true,
+    canManageProducts: true,
+    canManageServices: true,
+    canManageSales: true,
+    canViewReports: false,
+    canExportReports: false,
+    canManageCompanySettings: false,
+    canManageInvoiceSettings: false,
+    canManageUsers: false,
+    canBackupRestore: false,
+  };
+}
+
 export interface User {
   id: string;
-  name: string;
+  username: string; // Username untuk login (bukan email)
+  name: string; // Nama lengkap
   email: string;
+  password?: string;
   role: RoleType;
+  permissions?: UserPermissions;
   phone?: string;
   avatar?: string;
   isActive: boolean;
@@ -47,6 +136,7 @@ export interface InvoiceSetting {
   defaultDueDays: number; // e.g. 14
   isPpnActive: boolean;
   ppnRate: number; // e.g. 11 or 12 (%)
+  defaultTaxCalculationType?: 'exclusive' | 'inclusive'; // exclusive = belum termasuk pajak, inclusive = sudah termasuk pajak
   isMateraiActive: boolean;
   materaiAmount: number; // e.g. 10000
   materaiThreshold: number; // e.g. 5000000 (auto apply if grand subtotal >= 5jt)
@@ -99,11 +189,15 @@ export interface Product {
   code: string;
   sku?: string;
   name: string;
-  categoryId: string;
+  categoryId?: string;
   categoryName?: string;
+  category?: string;
   unit: string;
-  costPrice: number; // Harga beli
+  costPrice: number; // Harga beli / Modal (HPP)
+  purchasePrice?: number; // Alias for costPrice
   sellingPrice: number; // Harga jual
+  stock?: number;
+  minStock?: number;
   description?: string;
   isActive: boolean;
   createdAt: string;
@@ -115,6 +209,7 @@ export interface ServiceItem {
   name: string;
   description?: string;
   price: number;
+  costPrice?: number; // Harga modal / HPP operasional jasa
   unit: string;
   isActive: boolean;
   createdAt: string;
@@ -143,7 +238,9 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   unit: string;
-  unitPrice: number;
+  costPrice?: number; // Harga modal / HPP per unit
+  totalCost?: number; // Total modal = quantity * costPrice
+  unitPrice: number; // Harga jual per unit
   discountType: 'percentage' | 'nominal';
   discountValue: number;
   discountAmount: number;
@@ -175,6 +272,7 @@ export interface Invoice {
   isPpnActive: boolean;
   ppnRate: number;
   ppnAmount: number;
+  taxCalculationType?: 'exclusive' | 'inclusive';
   
   isMateraiActive: boolean;
   materaiAmount: number;
@@ -182,6 +280,10 @@ export interface Invoice {
   grandTotal: number;
   amountPaid: number;
   remainingBalance: number;
+
+  // Laba Rugi & HPP metadata
+  totalHpp?: number; // Total harga pokok / modal
+  grossProfit?: number; // Laba kotor = taxableBase - totalHpp
   
   terbilang: string; // Indonesian words
   

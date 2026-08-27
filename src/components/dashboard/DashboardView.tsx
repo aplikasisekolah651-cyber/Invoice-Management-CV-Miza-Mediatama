@@ -83,9 +83,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Metrics
   const totalInvoices = invoices.length;
-  const totalSalesAmount = invoices
-    .filter((i) => i.status !== 'cancelled' && i.status !== 'draft')
-    .reduce((acc, i) => acc + i.grandTotal, 0);
+  const activeInvoices = invoices.filter((i) => i.status !== 'cancelled' && i.status !== 'draft');
+  const validInvoices = invoices.filter((i) => i.status !== 'cancelled');
+
+  const totalSalesAmount = activeInvoices.reduce((acc, i) => acc + i.grandTotal, 0);
+  const totalDppAmount = validInvoices.reduce((acc, i) => acc + (i.taxableBase || 0), 0);
+  const totalPpnAmount = validInvoices.reduce((acc, i) => acc + (i.ppnAmount || 0), 0);
+
+  // Calculate HPP and Profit
+  const totalHppAmount = validInvoices.reduce((acc, i) => {
+    if (i.totalHpp !== undefined && i.totalHpp > 0) return acc + i.totalHpp;
+    const calc = i.items.reduce(
+      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
+      0
+    );
+    return acc + calc;
+  }, 0);
+
+  const totalGrossProfit = totalDppAmount - totalHppAmount;
+  const grossMarginPercent = totalDppAmount > 0 ? ((totalGrossProfit / totalDppAmount) * 100).toFixed(1) : '0';
 
   const thisMonthInvoices = invoices.filter((i) => {
     const d = new Date(i.invoiceDate);
@@ -93,6 +109,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   const thisMonthAmount = thisMonthInvoices.reduce((acc, i) => acc + i.grandTotal, 0);
+  const thisMonthDpp = thisMonthInvoices.reduce((acc, i) => acc + (i.taxableBase || 0), 0);
+  const thisMonthPpn = thisMonthInvoices.reduce((acc, i) => acc + (i.ppnAmount || 0), 0);
+  const thisMonthHpp = thisMonthInvoices.reduce((acc, i) => {
+    if (i.totalHpp !== undefined && i.totalHpp > 0) return acc + i.totalHpp;
+    return (
+      acc +
+      i.items.reduce(
+        (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
+        0
+      )
+    );
+  }, 0);
+  const thisMonthProfit = thisMonthDpp - thisMonthHpp;
 
   const unpaidInvoices = invoices.filter((i) => i.status === 'sent' || i.status === 'partial' || i.status === 'overdue');
   const totalUnpaidAmount = unpaidInvoices.reduce((acc, i) => acc + i.remainingBalance, 0);
@@ -278,6 +307,122 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="text-xs font-medium text-rose-600 mt-1">
               {overdueInvoices.length} tagihan melewati tempo
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Financial Overview: PPN, Omzet DPP, HPP & Laba Rugi */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <span>Rekapitulasi Omzet, PPN & Laba Rugi</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                  Margin {grossMarginPercent}%
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400">
+                Akumulasi nilai penjualan bersih DPP, pajak PPN, biaya modal (HPP), dan estimasi laba
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => handleNav('reports-profit-loss')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
+          >
+            <span>Buka Laporan Laba Rugi</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-5">
+          {/* Card 1: Total PPN */}
+          <div className="bg-slate-800/60 backdrop-blur-xs p-4 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-indigo-300 uppercase tracking-wider">
+                Total PPN Terpungut
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-400/20 text-indigo-200">
+                Pajak
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-white font-mono">
+                {formatRupiah(totalPpnAmount)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
+                <span>Bulan ini:</span>
+                <span className="font-semibold text-indigo-200">{formatRupiah(thisMonthPpn)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Omzet Bersih DPP */}
+          <div className="bg-slate-800/60 backdrop-blur-xs p-4 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-sky-300 uppercase tracking-wider">
+                Omzet Bersih (DPP)
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-400/20 text-sky-200">
+                Dasar Pajak
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-white font-mono">
+                {formatRupiah(totalDppAmount)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
+                <span>Bulan ini:</span>
+                <span className="font-semibold text-sky-200">{formatRupiah(thisMonthDpp)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Total HPP */}
+          <div className="bg-slate-800/60 backdrop-blur-xs p-4 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider">
+                Total Biaya Modal (HPP)
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-200">
+                Pengadaan
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-amber-200 font-mono">
+                {formatRupiah(totalHppAmount)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
+                <span>Bulan ini:</span>
+                <span className="font-semibold text-amber-300">{formatRupiah(thisMonthHpp)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Estimasi Laba Kotor */}
+          <div className="bg-emerald-950/50 backdrop-blur-xs p-4 rounded-xl border border-emerald-500/40 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider">
+                Estimasi Laba Kotor
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-400/20 text-emerald-200">
+                Profit
+              </span>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-emerald-300 font-mono">
+                {totalGrossProfit >= 0 ? '+' : ''}{formatRupiah(totalGrossProfit)}
+              </div>
+              <div className="text-[11px] text-emerald-200/80 mt-1 flex items-center justify-between">
+                <span>Bulan ini:</span>
+                <span className="font-semibold text-emerald-100">{formatRupiah(thisMonthProfit)}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -34,7 +34,7 @@ export type NavView =
 
 interface SidebarProps {
   currentView: string;
-  onNavigate: (view: string) => void;
+  onNavigate?: (view: string) => void;
   userRole: RoleType;
   company?: CompanySetting;
   isOpen?: boolean;
@@ -170,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-3.5 pb-2">
             <button
               onClick={() => {
-                onNavigate('invoice_create');
+                if (onNavigate) onNavigate('invoice_create');
                 handleClose();
               }}
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 active:scale-[0.98] cursor-pointer"
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => {
-                  onNavigate(item.id);
+                  if (onNavigate) onNavigate(item.id);
                   handleClose();
                 }}
                 className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl font-medium transition-all text-left cursor-pointer ${

@@ -20,8 +20,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   units,
   onSave,
 }) => {
-  if (!isOpen) return null;
-
   const isEditing = !!product;
 
   const [code, setCode] = useState(product?.code || '');
@@ -35,9 +33,26 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [stock, setStock] = useState(product?.stock || 10);
   const [minStock, setMinStock] = useState(product?.minStock || 2);
   const [description, setDescription] = useState(product?.description || '');
-  const [isActive, setIsActive] = useState(product !== undefined ? product.isActive : true);
-
+  const [isActive, setIsActive] = useState(product?.isActive ?? true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setCode(product?.code || '');
+      setName(product?.name || '');
+      setCategory(product?.category || (categories[0]?.name || 'Komputer & IT'));
+      setUnit(product?.unit || (units[0]?.name || 'unit'));
+      setPurchasePrice(product?.purchasePrice || 0);
+      setSellingPrice(product?.sellingPrice || 0);
+      setStock(product?.stock || 10);
+      setMinStock(product?.minStock || 2);
+      setDescription(product?.description || '');
+      setIsActive(product?.isActive ?? true);
+      setErrorMsg('');
+    }
+  }, [isOpen, product, categories, units]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

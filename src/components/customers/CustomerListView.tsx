@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building,
   Plus,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Customer, Invoice, Payment, RoleType } from '../../types';
 import { ExportService } from '../../services/exportService';
+import { ImportModal } from '../common/ImportModal';
 
 interface CustomerListViewProps {
   customers: Customer[];
@@ -44,8 +45,7 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDetailCustomer, setSelectedDetailCustomer] = useState<Customer | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
@@ -69,21 +69,6 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
     );
   };
 
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = await ExportService.importCustomersFromExcel(file);
-      if (data.length > 0) {
-        onImportCustomers(data);
-      }
-    } catch (err: any) {
-      alert(`Gagal mengimpor file: ${err.message || err}`);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -98,22 +83,14 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileImport}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
-
           {!isManager && (
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
-              title="Import Data Pelanggan dari Excel"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+              title="Import Data Pelanggan dengan Format Template"
             >
-              <Upload className="w-4 h-4 text-blue-600" />
-              <span>Import Excel</span>
+              <Upload className="w-4 h-4 text-indigo-600" />
+              <span>Import Pelanggan</span>
             </button>
           )}
 
@@ -261,6 +238,17 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal Import Pelanggan */}
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Impor Data Pelanggan (Customer)"
+        type="customers"
+        onConfirmImport={(importedData) => {
+          onImportCustomers(importedData);
+        }}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Package,
   Plus,
@@ -15,6 +15,7 @@ import {
 import { Product, Category, RoleType } from '../../types';
 import { formatRupiah } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
+import { ImportModal } from '../common/ImportModal';
 
 interface ProductListViewProps {
   products: Product[];
@@ -41,8 +42,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'instock'>('all');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -70,21 +70,6 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
     );
   };
 
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = await ExportService.importProductsFromExcel(file);
-      if (data.length > 0) {
-        onImportProducts(data);
-      }
-    } catch (err: any) {
-      alert(`Gagal mengimpor file: ${err.message || err}`);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -99,21 +84,14 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileImport}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
-
           {!isManager && (
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+              title="Import Data Barang dengan Format Template"
             >
-              <Upload className="w-4 h-4 text-blue-600" />
-              <span>Import Excel</span>
+              <Upload className="w-4 h-4 text-indigo-600" />
+              <span>Import Barang</span>
             </button>
           )}
 
@@ -305,6 +283,17 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal Import Barang */}
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Impor Data Barang & Produk"
+        type="products"
+        onConfirmImport={(importedData) => {
+          onImportProducts(importedData);
+        }}
+      />
     </div>
   );
 };

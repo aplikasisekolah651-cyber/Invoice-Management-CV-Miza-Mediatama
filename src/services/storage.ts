@@ -14,6 +14,7 @@ import {
   InvoiceStatus,
   BankAccount,
   RoleType,
+  getDefaultPermissions,
 } from '../types';
 import {
   initialCompany,
@@ -151,28 +152,60 @@ export const StorageService = {
 
   // --- AUTH & USERS ---
   getUsers(): User[] {
-    return loadFromStorage(STORAGE_KEYS.USERS, initialUsers);
+    const raw = loadFromStorage(STORAGE_KEYS.USERS, initialUsers);
+    return raw.map((u) => {
+      let username = u.username;
+      if (!username) {
+        if (u.id === 'user-admin') username = 'admin';
+        else if (u.id === 'user-operator') username = 'operator';
+        else if (u.id === 'user-manager') username = 'manager';
+        else if (u.email) username = u.email.split('@')[0];
+        else username = u.role || 'user';
+      }
+      return {
+        ...u,
+        username: username.toLowerCase().trim(),
+        permissions: u.permissions || getDefaultPermissions(u.role),
+        password: u.password || (u.role === 'admin' ? 'admin' : u.role === 'operator' ? 'operator' : 'manager'),
+      };
+    });
   },
   saveUsers(users: User[]): void {
     saveToStorage(STORAGE_KEYS.USERS, users);
   },
   getCurrentUser(): User {
-    return loadFromStorage(STORAGE_KEYS.CURRENT_USER, initialUsers[0]);
+    const raw = loadFromStorage(STORAGE_KEYS.CURRENT_USER, initialUsers[0]);
+    let username = raw.username;
+    if (!username) {
+      if (raw.id === 'user-admin') username = 'admin';
+      else if (raw.id === 'user-operator') username = 'operator';
+      else if (raw.id === 'user-manager') username = 'manager';
+      else if (raw.email) username = raw.email.split('@')[0];
+      else username = raw.role || 'user';
+    }
+    return {
+      ...raw,
+      username: username.toLowerCase().trim(),
+      permissions: raw.permissions || getDefaultPermissions(raw.role),
+      password: raw.password || (raw.role === 'admin' ? 'admin' : raw.role === 'operator' ? 'operator' : 'manager'),
+    };
   },
   setCurrentUser(user: User): void {
     saveToStorage(STORAGE_KEYS.CURRENT_USER, user);
-    this.addAuditLog('LOGIN', 'AUTH', user.id, `User ${user.name} (${user.role}) aktif`);
+    this.addAuditLog('LOGIN', 'AUTH', user.id, `User ${user.name} (@${user.username}) aktif`);
   },
   addUser(userData: Omit<User, 'id' | 'createdAt'>): User {
     const users = this.getUsers();
     const newUser: User = {
       ...userData,
       id: `user-${Date.now()}`,
+      username: (userData.username || userData.email.split('@')[0] || `user_${Date.now()}`).toLowerCase().trim(),
+      permissions: userData.permissions || getDefaultPermissions(userData.role),
       createdAt: new Date().toISOString(),
     };
     users.push(newUser);
     this.saveUsers(users);
-    this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', newUser.id, `Menambahkan user baru: ${newUser.name} (${newUser.role})`);
+    this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', newUser.id, `Menambahkan user baru: ${newUser.name} (@${newUser.username}, ${newUser.role})`);
     return newUser;
   },
   updateUser(id: string, updates: Partial<User>): void {
@@ -182,6 +215,7 @@ export const StorageService = {
     if (curr.id === id) {
       saveToStorage(STORAGE_KEYS.CURRENT_USER, { ...curr, ...updates });
     }
+    this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', id, `Mengubah data akun user ID: ${id}`);
   },
   deleteUser(id: string): void {
     const users = this.getUsers().filter((u) => u.id !== id);
