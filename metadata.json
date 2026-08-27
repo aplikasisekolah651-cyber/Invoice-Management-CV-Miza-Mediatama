@@ -1,0 +1,6 @@
+{
+  "name": "Invoice Management",
+  "description": "Invoice Management - Sistem Manajemen Invoice, Faktur, Pelanggan, Pembayaran, dan Laporan Keuangan",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

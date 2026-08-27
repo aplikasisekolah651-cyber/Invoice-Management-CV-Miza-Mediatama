@@ -1,0 +1,176 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "id": "string",
+        "username": "string",
+        "fullName": "string",
+        "email": "string",
+        "role": "string",
+        "status": "string",
+        "createdAt": "string"
+      }
+    },
+    "Customer": {
+      "collection": "customers",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "company": "string",
+        "email": "string",
+        "phone": "string",
+        "address": "string",
+        "npwp": "string",
+        "createdAt": "string"
+      }
+    },
+    "Product": {
+      "collection": "products",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "categoryId": "string",
+        "price": "number",
+        "unit": "string",
+        "stock": "number",
+        "description": "string",
+        "createdAt": "string"
+      }
+    },
+    "ServiceItem": {
+      "collection": "services",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "categoryId": "string",
+        "price": "number",
+        "unit": "string",
+        "description": "string",
+        "createdAt": "string"
+      }
+    },
+    "Category": {
+      "collection": "categories",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "type": "string",
+        "isActive": "boolean"
+      }
+    },
+    "Unit": {
+      "collection": "units",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "symbol": "string"
+      }
+    },
+    "SalesPerson": {
+      "collection": "sales",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "email": "string",
+        "phone": "string",
+        "commissionRate": "number",
+        "isActive": "boolean"
+      }
+    },
+    "Invoice": {
+      "collection": "invoices",
+      "fields": {
+        "id": "string",
+        "invoiceNumber": "string",
+        "poNumber": "string",
+        "invoiceDate": "string",
+        "dueDate": "string",
+        "deliveryDate": "string",
+        "customerId": "string",
+        "salesId": "string",
+        "salesChannel": "string",
+        "items": "array",
+        "subtotal": "number",
+        "discountTotal": "number",
+        "taxableBase": "number",
+        "ppnRate": "number",
+        "ppnAmount": "number",
+        "isPpnActive": "boolean",
+        "materaiAmount": "number",
+        "isMateraiActive": "boolean",
+        "grandTotal": "number",
+        "amountPaid": "number",
+        "remainingBalance": "number",
+        "status": "string",
+        "notes": "string",
+        "terms": "string",
+        "bankAccountId": "string",
+        "createdAt": "string",
+        "updatedAt": "string"
+      }
+    },
+    "Payment": {
+      "collection": "payments",
+      "fields": {
+        "id": "string",
+        "receiptNumber": "string",
+        "invoiceId": "string",
+        "invoiceNumber": "string",
+        "customerId": "string",
+        "customerName": "string",
+        "amount": "number",
+        "paymentDate": "string",
+        "paymentMethod": "string",
+        "bankAccountId": "string",
+        "referenceNumber": "string",
+        "notes": "string",
+        "createdBy": "string",
+        "createdAt": "string"
+      }
+    },
+    "CompanySetting": {
+      "collection": "company",
+      "fields": {
+        "name": "string",
+        "address": "string",
+        "phone": "string",
+        "email": "string",
+        "npwp": "string",
+        "logoUrl": "string"
+      }
+    },
+    "InvoiceSetting": {
+      "collection": "invoiceSettings",
+      "fields": {
+        "invoicePrefix": "string",
+        "receiptPrefix": "string",
+        "defaultDueDays": "number",
+        "defaultPpnRate": "number",
+        "isPpnActive": "boolean",
+        "isMateraiActive": "boolean",
+        "materaiAmount": "number",
+        "materaiThreshold": "number"
+      }
+    },
+    "AuditLog": {
+      "collection": "auditLogs",
+      "fields": {
+        "id": "string",
+        "action": "string",
+        "entity": "string",
+        "entityId": "string",
+        "userId": "string",
+        "userName": "string",
+        "details": "string",
+        "timestamp": "string"
+      }
+    }
+  }
+}

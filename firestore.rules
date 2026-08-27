@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rules for Invoice Management System
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
