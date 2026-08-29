@@ -254,11 +254,11 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     return company.bankAccounts.find((b) => b.id === bankAccountId);
   }, [company.bankAccounts, bankAccountId]);
 
-  // Auto-fill signatory customer name when customer changes (auto-fill from school Contact Person)
+  // Auto-fill signatory customer name when customer changes (auto-fill from customer's Contact Person Name)
   useEffect(() => {
     if (currentCustomer && (!signatoryCustomerName || !isEditing)) {
       setSignatoryCustomerName(
-        currentCustomer.contactPerson || currentCustomer.name || currentCustomer.companyName || ''
+        currentCustomer.name || currentCustomer.contactPerson || currentCustomer.companyName || ''
       );
     }
   }, [currentCustomer, isEditing]);
@@ -558,8 +558,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       showPaymentInfo,
       signatoryCustomerName:
         signatoryCustomerName.trim() ||
-        currentCustomer.contactPerson ||
         currentCustomer.name ||
+        currentCustomer.contactPerson ||
         currentCustomer.companyName ||
         '-',
       signatorySalesName: signatorySalesName || currentSales?.name || currentUser.name || 'Marketing',
