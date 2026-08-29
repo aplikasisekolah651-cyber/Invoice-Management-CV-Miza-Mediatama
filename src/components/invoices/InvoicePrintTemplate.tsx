@@ -200,8 +200,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                 </div>
 
                 <div className="text-[10px] text-slate-600 leading-relaxed space-y-0.5 pl-0.5 mt-1.5">
-                  <p className="flex items-start gap-1">
-                    <MapPin className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
+                  <p>
                     <span>
                       {activeCompany.address} {activeCompany.rtRw ? `${activeCompany.rtRw}, ` : ''}
                       {activeCompany.village ? `${activeCompany.village}, ` : ''}
@@ -216,8 +215,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                     <strong className="text-slate-800 font-semibold">Telp/WA:</strong> {activeCompany.phone}
                   </p>
                   {activeCompany.email && (
-                    <p className="flex items-center gap-1 text-slate-500">
-                      <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                    <p className="text-slate-500">
                       <span>{activeCompany.email}</span>
                       {activeCompany.website && (
                         <>
@@ -274,20 +272,19 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
 
                 {/* KEPADA : Kolom Pelanggan Diletakkan Dibawah Tanggal Invoice */}
                 <div className="mt-2 pt-1.5 border-t border-slate-200/90 text-left bg-slate-50/80 p-2 rounded-lg border border-slate-200">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
                     <span className="font-extrabold text-slate-800">KEPADA :</span>
                   </div>
-                  <div className="text-[11px] font-black text-slate-900 pl-2.5 leading-tight">
+                  <div className="text-[11px] font-black text-slate-900 leading-tight">
                     {invoice.customerSnapshot?.companyName || invoice.customerSnapshot?.name}
                   </div>
                   {invoice.customerSnapshot?.companyName && invoice.customerSnapshot?.name && (
-                    <div className="text-slate-700 font-semibold text-[10px] mt-0.5 pl-2.5">
+                    <div className="text-slate-700 font-semibold text-[10px] mt-0.5">
                       Attn: {invoice.customerSnapshot?.name}
                     </div>
                   )}
                   {invoice.customerSnapshot?.address && (
-                    <div className="text-slate-600 text-[9.5px] mt-0.5 leading-tight pl-2.5">
+                    <div className="text-slate-600 text-[9.5px] mt-0.5 leading-tight">
                       {invoice.customerSnapshot.address}
                       {invoice.customerSnapshot.city ? `, ${invoice.customerSnapshot.city}` : ''}
                       {invoice.customerSnapshot.postalCode ? ` ${invoice.customerSnapshot.postalCode}` : ''}
