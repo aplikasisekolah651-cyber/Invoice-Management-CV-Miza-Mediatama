@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'settings',
-      label: 'Pengaturan & Logo',
+      label: 'Pengaturan',
       icon: Settings,
       desc: 'Profil, logo, & sistem',
       activeMatch: ['settings'],

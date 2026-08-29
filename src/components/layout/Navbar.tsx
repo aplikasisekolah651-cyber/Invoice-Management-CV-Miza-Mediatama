@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Menu,
   Bell,
@@ -12,9 +12,12 @@ import {
   RefreshCw,
   KeyRound,
   Check,
+  Database,
+  Cloud,
 } from 'lucide-react';
 import { User, RoleType } from '../../types';
 import { StatusBadge } from '../common/Badge';
+import { FirebaseSyncService, SyncStatus } from '../../services/firebaseSync';
 
 interface NavbarProps {
   currentUser: User;
@@ -54,6 +57,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   title = 'Invoice Management',
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(FirebaseSyncService.getStatus());
+
+  useEffect(() => {
+    const unsub = FirebaseSyncService.subscribeStatus((st) => setSyncStatus(st));
+    return () => unsub();
+  }, []);
 
   const handleToggle = () => {
     if (onToggleSidebar) onToggleSidebar();
@@ -113,7 +122,26 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Realtime Cloud Database Indicator */}
+        <div
+          title={
+            syncStatus === 'connected'
+              ? 'Database Cloud Firestore Terhubung & Sinkron Real-time'
+              : syncStatus === 'syncing'
+              ? 'Sedang menyelaraskan data dengan Cloud Firestore...'
+              : 'Menghubungkan ke Cloud Firestore...'
+          }
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <Database className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="font-semibold text-[11px]">Cloud DB Realtime</span>
+        </div>
+
         {/* Role Badge Indicator */}
         <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
           <Shield className="w-3.5 h-3.5 text-indigo-600" />

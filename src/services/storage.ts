@@ -30,6 +30,7 @@ import {
   initialAuditLogs,
 } from './initialData';
 import { determineInvoiceStatus } from './calculation';
+import { FirebaseSyncService } from './firebaseSync';
 
 const STORAGE_KEYS = {
   COMPANY: 'miza_company_v1',
@@ -137,17 +138,23 @@ export const StorageService = {
   getCompany(): CompanySetting {
     return loadFromStorage(STORAGE_KEYS.COMPANY, initialCompany);
   },
-  saveCompany(company: CompanySetting): void {
+  saveCompany(company: CompanySetting, syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.COMPANY, company);
-    this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', 'company-settings', 'Memperbarui profil dan identitas perusahaan');
+    if (syncToFirestore) {
+      FirebaseSyncService.saveCompany(company);
+      this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', 'company-settings', 'Memperbarui profil dan identitas perusahaan');
+    }
   },
 
   getInvoiceSetting(): InvoiceSetting {
     return loadFromStorage(STORAGE_KEYS.INVOICE_SETTING, initialInvoiceSetting);
   },
-  saveInvoiceSetting(settings: InvoiceSetting): void {
+  saveInvoiceSetting(settings: InvoiceSetting, syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.INVOICE_SETTING, settings);
-    this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', 'invoice-settings', 'Memperbarui konfigurasi nomor, PPN, dan materai invoice');
+    if (syncToFirestore) {
+      FirebaseSyncService.saveInvoiceSetting(settings);
+      this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', 'invoice-settings', 'Memperbarui konfigurasi nomor, PPN, dan materai invoice');
+    }
   },
 
   // --- AUTH & USERS ---
@@ -170,8 +177,11 @@ export const StorageService = {
       };
     });
   },
-  saveUsers(users: User[]): void {
+  saveUsers(users: User[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.USERS, users);
+    if (syncToFirestore) {
+      users.forEach((u) => FirebaseSyncService.saveUser(u));
+    }
   },
   getCurrentUser(): User {
     const raw = loadFromStorage(STORAGE_KEYS.CURRENT_USER, initialUsers[0]);
@@ -205,12 +215,17 @@ export const StorageService = {
     };
     users.push(newUser);
     this.saveUsers(users);
+    FirebaseSyncService.saveUser(newUser);
     this.addAuditLog('UPDATE_SETTINGS', 'SETTINGS', newUser.id, `Menambahkan user baru: ${newUser.name} (@${newUser.username}, ${newUser.role})`);
     return newUser;
   },
   updateUser(id: string, updates: Partial<User>): void {
     const users = this.getUsers().map((u) => (u.id === id ? { ...u, ...updates } : u));
     this.saveUsers(users);
+    const targetUser = users.find((u) => u.id === id);
+    if (targetUser) {
+      FirebaseSyncService.saveUser(targetUser);
+    }
     const curr = this.getCurrentUser();
     if (curr.id === id) {
       saveToStorage(STORAGE_KEYS.CURRENT_USER, { ...curr, ...updates });
@@ -220,14 +235,18 @@ export const StorageService = {
   deleteUser(id: string): void {
     const users = this.getUsers().filter((u) => u.id !== id);
     this.saveUsers(users);
+    FirebaseSyncService.deleteUser(id);
   },
 
   // --- CUSTOMERS ---
   getCustomers(): Customer[] {
     return loadFromStorage(STORAGE_KEYS.CUSTOMERS, initialCustomers);
   },
-  saveCustomers(customers: Customer[]): void {
+  saveCustomers(customers: Customer[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.CUSTOMERS, customers);
+    if (syncToFirestore) {
+      customers.forEach((c) => FirebaseSyncService.saveCustomer(c));
+    }
   },
   addCustomer(data: Omit<Customer, 'id' | 'createdAt'>): Customer {
     const customers = this.getCustomers();
@@ -238,25 +257,40 @@ export const StorageService = {
     };
     customers.unshift(newCustomer);
     this.saveCustomers(customers);
+    FirebaseSyncService.saveCustomer(newCustomer);
     this.addAuditLog('CREATE_CUSTOMER', 'CUSTOMER', newCustomer.id, `Menambahkan pelanggan: ${newCustomer.companyName || newCustomer.name}`);
     return newCustomer;
   },
   updateCustomer(id: string, updates: Partial<Customer>): void {
-    const customers = this.getCustomers().map((c) => (c.id === id ? { ...c, ...updates } : c));
+    let updatedCustomer: Customer | undefined;
+    const customers = this.getCustomers().map((c) => {
+      if (c.id === id) {
+        updatedCustomer = { ...c, ...updates };
+        return updatedCustomer;
+      }
+      return c;
+    });
     this.saveCustomers(customers);
+    if (updatedCustomer) {
+      FirebaseSyncService.saveCustomer(updatedCustomer);
+    }
     this.addAuditLog('UPDATE_CUSTOMER', 'CUSTOMER', id, `Memperbarui data pelanggan ID: ${id}`);
   },
   deleteCustomer(id: string): void {
     const customers = this.getCustomers().filter((c) => c.id !== id);
     this.saveCustomers(customers);
+    FirebaseSyncService.deleteCustomer(id);
   },
 
   // --- PRODUCTS ---
   getProducts(): Product[] {
     return loadFromStorage(STORAGE_KEYS.PRODUCTS, initialProducts);
   },
-  saveProducts(products: Product[]): void {
+  saveProducts(products: Product[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.PRODUCTS, products);
+    if (syncToFirestore) {
+      products.forEach((p) => FirebaseSyncService.saveProduct(p));
+    }
   },
   addProduct(data: Omit<Product, 'id' | 'createdAt'>): Product {
     const products = this.getProducts();
@@ -267,25 +301,40 @@ export const StorageService = {
     };
     products.unshift(newProd);
     this.saveProducts(products);
+    FirebaseSyncService.saveProduct(newProd);
     this.addAuditLog('CREATE_PRODUCT', 'PRODUCT', newProd.id, `Menambahkan produk baru: ${newProd.name}`);
     return newProd;
   },
   updateProduct(id: string, updates: Partial<Product>): void {
-    const products = this.getProducts().map((p) => (p.id === id ? { ...p, ...updates } : p));
+    let updatedProduct: Product | undefined;
+    const products = this.getProducts().map((p) => {
+      if (p.id === id) {
+        updatedProduct = { ...p, ...updates };
+        return updatedProduct;
+      }
+      return p;
+    });
     this.saveProducts(products);
+    if (updatedProduct) {
+      FirebaseSyncService.saveProduct(updatedProduct);
+    }
     this.addAuditLog('UPDATE_PRODUCT', 'PRODUCT', id, `Memperbarui data barang ID: ${id}`);
   },
   deleteProduct(id: string): void {
     const products = this.getProducts().filter((p) => p.id !== id);
     this.saveProducts(products);
+    FirebaseSyncService.deleteProduct(id);
   },
 
   // --- SERVICES ---
   getServices(): ServiceItem[] {
     return loadFromStorage(STORAGE_KEYS.SERVICES, initialServices);
   },
-  saveServices(services: ServiceItem[]): void {
+  saveServices(services: ServiceItem[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.SERVICES, services);
+    if (syncToFirestore) {
+      services.forEach((s) => FirebaseSyncService.saveService(s));
+    }
   },
   addService(data: Omit<ServiceItem, 'id' | 'createdAt'>): ServiceItem {
     const services = this.getServices();
@@ -296,35 +345,56 @@ export const StorageService = {
     };
     services.unshift(newService);
     this.saveServices(services);
+    FirebaseSyncService.saveService(newService);
     return newService;
   },
   updateService(id: string, updates: Partial<ServiceItem>): void {
-    const services = this.getServices().map((s) => (s.id === id ? { ...s, ...updates } : s));
+    let updatedService: ServiceItem | undefined;
+    const services = this.getServices().map((s) => {
+      if (s.id === id) {
+        updatedService = { ...s, ...updates };
+        return updatedService;
+      }
+      return s;
+    });
     this.saveServices(services);
+    if (updatedService) {
+      FirebaseSyncService.saveService(updatedService);
+    }
   },
   deleteService(id: string): void {
     const services = this.getServices().filter((s) => s.id !== id);
     this.saveServices(services);
+    FirebaseSyncService.deleteService(id);
   },
 
   // --- CATEGORIES, UNITS, SALES ---
   getCategories(): Category[] {
     return loadFromStorage(STORAGE_KEYS.CATEGORIES, initialCategories);
   },
-  saveCategories(cats: Category[]): void {
+  saveCategories(cats: Category[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.CATEGORIES, cats);
+    if (syncToFirestore) {
+      cats.forEach((c) => FirebaseSyncService.saveCategory(c));
+    }
   },
   getUnits(): Unit[] {
     return loadFromStorage(STORAGE_KEYS.UNITS, initialUnits);
   },
-  saveUnits(units: Unit[]): void {
+  saveUnits(units: Unit[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.UNITS, units);
+    if (syncToFirestore) {
+      units.forEach((u) => FirebaseSyncService.saveUnit(u));
+    }
   },
   getSales(): SalesPerson[] {
     return loadFromStorage(STORAGE_KEYS.SALES, initialSales);
   },
-  saveSalesList(sales: SalesPerson[]): void {
+  saveSalesList(sales: SalesPerson[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.SALES, sales);
+    if (syncToFirestore) {
+      sales.forEach((s) => FirebaseSyncService.saveSales(s));
+    }
   },
   addSales(data: Omit<SalesPerson, 'id' | 'createdAt'>): SalesPerson {
     const sales = this.getSales();
@@ -335,11 +405,22 @@ export const StorageService = {
     };
     sales.push(newSales);
     this.saveSalesList(sales);
+    FirebaseSyncService.saveSales(newSales);
     return newSales;
   },
   updateSales(id: string, updates: Partial<SalesPerson>): void {
-    const sales = this.getSales().map((s) => (s.id === id ? { ...s, ...updates } : s));
+    let updatedSales: SalesPerson | undefined;
+    const sales = this.getSales().map((s) => {
+      if (s.id === id) {
+        updatedSales = { ...s, ...updates };
+        return updatedSales;
+      }
+      return s;
+    });
     this.saveSalesList(sales);
+    if (updatedSales) {
+      FirebaseSyncService.saveSales(updatedSales);
+    }
   },
 
   // --- INVOICES ---
@@ -360,8 +441,11 @@ export const StorageService = {
     return this.getInvoices().find((i) => i.id === id);
   },
 
-  saveInvoices(invoices: Invoice[]): void {
+  saveInvoices(invoices: Invoice[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.INVOICES, invoices);
+    if (syncToFirestore) {
+      invoices.forEach((inv) => FirebaseSyncService.saveInvoice(inv));
+    }
   },
 
   createInvoice(data: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Invoice {
@@ -374,6 +458,7 @@ export const StorageService = {
     };
     invoices.unshift(newInvoice);
     this.saveInvoices(invoices);
+    FirebaseSyncService.saveInvoice(newInvoice);
 
     this.addAuditLog(
       'CREATE_INVOICE',
@@ -385,9 +470,10 @@ export const StorageService = {
   },
 
   updateInvoice(id: string, updates: Partial<Invoice>): void {
+    let updatedInv: Invoice | undefined;
     const invoices = this.getInvoices().map((inv) => {
       if (inv.id === id) {
-        const updatedInv = { ...inv, ...updates, updatedAt: new Date().toISOString() };
+        updatedInv = { ...inv, ...updates, updatedAt: new Date().toISOString() };
         // Recalculate status if payment or due date changes
         updatedInv.status = determineInvoiceStatus(
           updatedInv.status,
@@ -400,6 +486,9 @@ export const StorageService = {
       return inv;
     });
     this.saveInvoices(invoices);
+    if (updatedInv) {
+      FirebaseSyncService.saveInvoice(updatedInv);
+    }
     this.addAuditLog('UPDATE_INVOICE', 'INVOICE', id, `Memperbarui invoice ID: ${id}`);
   },
 
@@ -414,6 +503,7 @@ export const StorageService = {
     const inv = this.getInvoiceById(id);
     const invoices = this.getInvoices().filter((i) => i.id !== id);
     this.saveInvoices(invoices);
+    FirebaseSyncService.deleteInvoice(id);
     if (inv) {
       this.addAuditLog('DELETE_INVOICE', 'INVOICE', id, `Menghapus invoice ${inv.invoiceNumber}`);
     }
@@ -472,8 +562,11 @@ export const StorageService = {
     return loadFromStorage<Payment[]>(STORAGE_KEYS.PAYMENTS, []);
   },
 
-  savePayments(payments: Payment[]): void {
+  savePayments(payments: Payment[], syncToFirestore = true): void {
     saveToStorage(STORAGE_KEYS.PAYMENTS, payments);
+    if (syncToFirestore) {
+      payments.forEach((p) => FirebaseSyncService.savePayment(p));
+    }
   },
 
   getPaymentsByInvoiceId(invoiceId: string): Payment[] {
@@ -500,6 +593,7 @@ export const StorageService = {
 
     payments.unshift(newPayment);
     saveToStorage(STORAGE_KEYS.PAYMENTS, payments);
+    FirebaseSyncService.savePayment(newPayment);
 
     // Update target invoice's amountPaid and status
     const targetInvoice = this.getInvoiceById(data.invoiceId);
@@ -537,6 +631,7 @@ export const StorageService = {
 
     const payments = this.getPayments().filter((p) => p.id !== id);
     saveToStorage(STORAGE_KEYS.PAYMENTS, payments);
+    FirebaseSyncService.deletePayment(id);
 
     // Recalculate invoice balance
     const targetInvoice = this.getInvoiceById(payment.invoiceId);
@@ -571,6 +666,13 @@ export const StorageService = {
     return loadFromStorage<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
   },
 
+  saveAuditLogs(logs: AuditLog[], syncToFirestore = true): void {
+    saveToStorage(STORAGE_KEYS.AUDIT_LOGS, logs);
+    if (syncToFirestore) {
+      logs.forEach((l) => FirebaseSyncService.saveAuditLog(l));
+    }
+  },
+
   addAuditLog(
     action: AuditLog['action'],
     module: AuditLog['module'],
@@ -596,6 +698,7 @@ export const StorageService = {
       // Keep max 500 audit logs
       if (logs.length > 500) logs.length = 500;
       saveToStorage(STORAGE_KEYS.AUDIT_LOGS, logs);
+      FirebaseSyncService.saveAuditLog(newLog);
     } catch (e) {
       console.error('Failed to write audit log', e);
     }
@@ -626,18 +729,18 @@ export const StorageService = {
   importDatabaseSnapshot(jsonString: string): boolean {
     try {
       const parsed = JSON.parse(jsonString);
-      if (parsed.company) saveToStorage(STORAGE_KEYS.COMPANY, parsed.company);
-      if (parsed.invoiceSetting) saveToStorage(STORAGE_KEYS.INVOICE_SETTING, parsed.invoiceSetting);
-      if (parsed.users) saveToStorage(STORAGE_KEYS.USERS, parsed.users);
-      if (parsed.customers) saveToStorage(STORAGE_KEYS.CUSTOMERS, parsed.customers);
-      if (parsed.products) saveToStorage(STORAGE_KEYS.PRODUCTS, parsed.products);
-      if (parsed.services) saveToStorage(STORAGE_KEYS.SERVICES, parsed.services);
-      if (parsed.categories) saveToStorage(STORAGE_KEYS.CATEGORIES, parsed.categories);
-      if (parsed.units) saveToStorage(STORAGE_KEYS.UNITS, parsed.units);
-      if (parsed.sales) saveToStorage(STORAGE_KEYS.SALES, parsed.sales);
-      if (parsed.invoices) saveToStorage(STORAGE_KEYS.INVOICES, parsed.invoices);
-      if (parsed.payments) saveToStorage(STORAGE_KEYS.PAYMENTS, parsed.payments);
-      if (parsed.auditLogs) saveToStorage(STORAGE_KEYS.AUDIT_LOGS, parsed.auditLogs);
+      if (parsed.company) this.saveCompany(parsed.company);
+      if (parsed.invoiceSetting) this.saveInvoiceSetting(parsed.invoiceSetting);
+      if (parsed.users) this.saveUsers(parsed.users);
+      if (parsed.customers) this.saveCustomers(parsed.customers);
+      if (parsed.products) this.saveProducts(parsed.products);
+      if (parsed.services) this.saveServices(parsed.services);
+      if (parsed.categories) this.saveCategories(parsed.categories);
+      if (parsed.units) this.saveUnits(parsed.units);
+      if (parsed.sales) this.saveSalesList(parsed.sales);
+      if (parsed.invoices) this.saveInvoices(parsed.invoices);
+      if (parsed.payments) this.savePayments(parsed.payments);
+      if (parsed.auditLogs) this.saveAuditLogs(parsed.auditLogs);
 
       this.addAuditLog('RESTORE_DB', 'SYSTEM', undefined, 'Memulihkan data sistem dari file backup');
       return true;
@@ -651,6 +754,7 @@ export const StorageService = {
     localStorage.clear();
     this.init();
     notifyChange();
+    FirebaseSyncService.pushLocalToFirestore();
   },
 
   // --- COMPATIBILITY & UNIFIED ALIASES ---
@@ -671,6 +775,7 @@ export const StorageService = {
       const invoices = this.getInvoices();
       invoices.unshift(invoice);
       this.saveInvoices(invoices);
+      FirebaseSyncService.saveInvoice(invoice);
       this.addAuditLog('CREATE_INVOICE', 'INVOICE', invoice.id, `Menyimpan invoice: ${invoice.invoiceNumber}`);
     }
   },
@@ -688,6 +793,7 @@ export const StorageService = {
       const customers = this.getCustomers();
       customers.unshift(cust);
       this.saveCustomers(customers);
+      FirebaseSyncService.saveCustomer(cust);
       this.addAuditLog('CREATE_CUSTOMER', 'CUSTOMER', cust.id, `Menambahkan pelanggan: ${cust.companyName || cust.name}`);
     }
   },
@@ -699,6 +805,7 @@ export const StorageService = {
       const products = this.getProducts();
       products.unshift(prod);
       this.saveProducts(products);
+      FirebaseSyncService.saveProduct(prod);
       this.addAuditLog('CREATE_PRODUCT', 'PRODUCT', prod.id, `Menambahkan barang: ${prod.name}`);
     }
   },
@@ -710,6 +817,7 @@ export const StorageService = {
       const services = this.getServices();
       services.unshift(srv);
       this.saveServices(services);
+      FirebaseSyncService.saveService(srv);
       this.addAuditLog('CREATE_PRODUCT', 'PRODUCT', srv.id, `Menambahkan layanan jasa: ${srv.name}`);
     }
   },
@@ -722,10 +830,12 @@ export const StorageService = {
       cats.push(cat);
     }
     this.saveCategories(cats);
+    FirebaseSyncService.saveCategory(cat);
   },
   deleteCategory(id: string): void {
     const cats = this.getCategories().filter((c) => c.id !== id);
     this.saveCategories(cats);
+    FirebaseSyncService.deleteCategory(id);
   },
   saveUnit(unit: Unit): void {
     const units = this.getUnits();
@@ -736,10 +846,12 @@ export const StorageService = {
       units.push(unit);
     }
     this.saveUnits(units);
+    FirebaseSyncService.saveUnit(unit);
   },
   deleteUnit(id: string): void {
     const units = this.getUnits().filter((u) => u.id !== id);
     this.saveUnits(units);
+    FirebaseSyncService.deleteUnit(id);
   },
   saveSales(sales: SalesPerson): void {
     const list = this.getSales();
@@ -750,10 +862,12 @@ export const StorageService = {
       list.push(sales);
     }
     this.saveSalesList(list);
+    FirebaseSyncService.saveSales(sales);
   },
   deleteSales(id: string): void {
     const list = this.getSales().filter((s) => s.id !== id);
     this.saveSalesList(list);
+    FirebaseSyncService.deleteSales(id);
   },
   subscribeStorage(listener: Listener) {
     return subscribeStorage(listener);
@@ -788,6 +902,7 @@ export const StorageService = {
       users.push(user);
     }
     this.saveUsers(users);
+    FirebaseSyncService.saveUser(user);
   },
   switchRole(role: RoleType): void {
     const user = this.getCurrentUser();
