@@ -988,7 +988,7 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                       <input
                         type="number"
                         min="0"
-                        step="1000"
+                        step="any"
                         value={item.unitPrice}
                         onChange={(e) =>
                           handleItemFieldChange(idx, 'unitPrice', Math.max(0, Number(e.target.value)))
@@ -1411,7 +1411,7 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                     <input
                       type="number"
                       min="0"
-                      step="1000"
+                      step="any"
                       value={materaiAmount}
                       onChange={(e) => setMateraiAmount(Math.max(0, Number(e.target.value)))}
                       className="w-24 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-right font-medium text-xs focus:outline-none"

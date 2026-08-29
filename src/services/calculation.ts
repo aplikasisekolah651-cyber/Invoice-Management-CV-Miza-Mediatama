@@ -193,15 +193,19 @@ export function determineInvoiceStatus(
   dueDate: string
 ): InvoiceStatus {
   if (currentStatus === 'cancelled') return 'cancelled';
-  if (currentStatus === 'draft') return 'draft';
 
-  if (amountPaid >= grandTotal && grandTotal > 0) {
+  // If paid in full (accounting for tiny decimal tolerances or exact match)
+  if ((amountPaid >= grandTotal || Math.abs(grandTotal - amountPaid) < 0.01) && grandTotal > 0) {
     return 'paid';
   }
 
+  // If partially paid
   if (amountPaid > 0 && amountPaid < grandTotal) {
     return 'partial';
   }
+
+  // If no payment was made and it's a draft
+  if (currentStatus === 'draft') return 'draft';
 
   // Check if overdue
   if (dueDate) {

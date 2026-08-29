@@ -170,7 +170,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="10000"
+                  step="any"
                   value={costPrice}
                   onChange={(e) => setCostPrice(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono text-slate-800 focus:outline-none"
@@ -185,7 +185,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="10000"
+                  step="any"
                   value={price}
                   onChange={(e) => setPrice(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-purple-700 font-mono text-sm focus:outline-none"

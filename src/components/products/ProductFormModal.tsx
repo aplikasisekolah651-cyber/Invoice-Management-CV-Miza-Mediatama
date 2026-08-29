@@ -192,7 +192,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="1000"
+                  step="any"
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono text-slate-800 focus:outline-none"
@@ -207,7 +207,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="1000"
+                  step="any"
                   value={sellingPrice}
                   onChange={(e) => setSellingPrice(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-blue-700 font-mono focus:outline-none"

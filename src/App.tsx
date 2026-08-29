@@ -301,13 +301,15 @@ export default function App() {
     FirebaseSyncService.savePayment(newPayment);
     const updatedInv = StorageService.getInvoiceById(newPayment.invoiceId);
     if (updatedInv) FirebaseSyncService.saveInvoice(updatedInv);
+    loadState();
+    const statusLabel = updatedInv?.status === 'paid' ? 'LUNAS (PAID)' : 'DIBAYAR SEBAGIAN';
     addToast(
       'Pembayaran Berhasil Dicatat',
       `Bukti ${newPayment.paymentNumber} sebesar ${new Intl.NumberFormat('id-ID', {
         style: 'currency',
         currency: 'IDR',
         maximumFractionDigits: 0,
-      }).format(newPayment.amount)} berhasil disimpan.`,
+      }).format(newPayment.amount)} berhasil disimpan. Status Invoice: ${statusLabel}.`,
       'success'
     );
   };
@@ -324,6 +326,7 @@ export default function App() {
         FirebaseSyncService.deletePayment(payment.id);
         const updatedInv = StorageService.getInvoiceById(payment.invoiceId);
         if (updatedInv) FirebaseSyncService.saveInvoice(updatedInv);
+        loadState();
         addToast('Pembayaran Dihapus', `Bukti bayar ${payment.paymentNumber} telah dihapus.`, 'info');
         setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
       },

@@ -238,23 +238,47 @@ export const PaymentFormModal: React.FC<PaymentFormModalProps> = ({
                 <label className="block font-bold text-slate-700">
                   Jumlah Bayar (Rp) <span className="text-rose-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={handleQuickPayFull}
-                  className="text-[10px] font-bold text-emerald-700 hover:underline"
-                >
-                  Lunasi Penuh
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleQuickPayHalf}
+                    className="text-[10.5px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                    title="Bayar 50% dari sisa tagihan"
+                  >
+                    50%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleQuickPayFull}
+                    className="text-[10.5px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1"
+                    title="Lunasi seluruh sisa piutang"
+                  >
+                    <span>✓ Lunasi Penuh</span>
+                  </button>
+                </div>
               </div>
               <input
                 type="number"
                 min="1"
-                step="1000"
-                value={amount}
+                step="any"
+                value={amount || ''}
                 onChange={(e) => setAmount(Number(e.target.value))}
+                placeholder="Masukkan nominal..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700 text-sm focus:bg-white focus:outline-none"
               />
-              <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(amount)}</div>
+              <div className="flex items-center justify-between text-[11px] mt-1">
+                <span className="font-semibold text-slate-700">{formatRupiah(amount)}</span>
+                {activeInvoice && amount >= activeInvoice.remainingBalance && (
+                  <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Status Invoice akan menjadi: LUNAS
+                  </span>
+                )}
+                {activeInvoice && amount > 0 && amount < activeInvoice.remainingBalance && (
+                  <span className="text-[10.5px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    Sisa Piutang: {formatRupiah(activeInvoice.remainingBalance - amount)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
