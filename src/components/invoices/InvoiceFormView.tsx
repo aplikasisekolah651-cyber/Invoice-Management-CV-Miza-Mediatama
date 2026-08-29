@@ -24,6 +24,7 @@ import {
   Tag,
   Filter,
   Layers,
+  TrendingUp,
 } from 'lucide-react';
 import {
   Invoice,
@@ -41,6 +42,7 @@ import {
   calculateLineItem,
   calculateInvoiceSummary,
   formatRupiah,
+  resolveItemCostPrice,
 } from '../../services/calculation';
 import { StorageService } from '../../services/storage';
 
@@ -101,11 +103,15 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
   // Line items state
   const [items, setItems] = useState<InvoiceItem[]>(() => {
     if (editInvoice?.items && editInvoice.items.length > 0) {
-      return editInvoice.items.map((it) => ({
-        ...it,
-        costPrice: it.costPrice ?? (products.find((p) => p.id === it.itemId)?.costPrice || 0),
-        totalCost: (it.quantity || 1) * (it.costPrice ?? (products.find((p) => p.id === it.itemId)?.costPrice || 0)),
-      }));
+      return editInvoice.items.map((it) => {
+        const cost = resolveItemCostPrice(it, products, services);
+        const qty = Number(it.quantity) || 1;
+        return {
+          ...it,
+          costPrice: cost,
+          totalCost: qty * cost,
+        };
+      });
     }
     const defaultProd = products[0];
     const defaultCost = defaultProd ? (defaultProd.costPrice ?? defaultProd.purchasePrice ?? 0) : 0;
@@ -248,12 +254,14 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     return company.bankAccounts.find((b) => b.id === bankAccountId);
   }, [company.bankAccounts, bankAccountId]);
 
-  // Auto-fill signatory customer name when customer changes
+  // Auto-fill signatory customer name when customer changes (auto-fill from school Contact Person)
   useEffect(() => {
-    if (currentCustomer && !signatoryCustomerName) {
-      setSignatoryCustomerName(currentCustomer.name || currentCustomer.companyName);
+    if (currentCustomer && (!signatoryCustomerName || !isEditing)) {
+      setSignatoryCustomerName(
+        currentCustomer.contactPerson || currentCustomer.name || currentCustomer.companyName || ''
+      );
     }
-  }, [currentCustomer]);
+  }, [currentCustomer, isEditing]);
 
   // Auto-fill signatory marketing/operator name when sales changes (for new invoice)
   useEffect(() => {
@@ -430,6 +438,21 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
   ]);
 
   // Filtered items for Catalog Browser Modal
+  const liveTotalHpp = useMemo(() => {
+    return items.reduce(
+      (acc, it) => acc + (Number(it.quantity) || 0) * resolveItemCostPrice(it, products, services),
+      0
+    );
+  }, [items, products, services]);
+
+  const liveGrossProfit = useMemo(() => {
+    return summary.taxableBase - liveTotalHpp;
+  }, [summary.taxableBase, liveTotalHpp]);
+
+  const liveProfitMargin = useMemo(() => {
+    return summary.taxableBase > 0 ? (liveGrossProfit / summary.taxableBase) * 100 : 0;
+  }, [summary.taxableBase, liveGrossProfit]);
+
   const modalCatalogProducts = useMemo(() => {
     return products.filter((p) => {
       const matchCat =
@@ -495,11 +518,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
     if (!currentCustomer) return;
 
-    const totalHpp = items.reduce(
-      (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0),
-      0
-    );
-    const grossProfit = summary.taxableBase - totalHpp;
+    const totalHpp = liveTotalHpp;
+    const grossProfit = liveGrossProfit;
 
     const payload: Invoice = {
       id: editInvoice?.id || `inv-${Date.now()}`,
@@ -536,7 +556,12 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       bankAccountId,
       bankAccountSnapshot: currentBank,
       showPaymentInfo,
-      signatoryCustomerName: signatoryCustomerName || currentCustomer.name,
+      signatoryCustomerName:
+        signatoryCustomerName.trim() ||
+        currentCustomer.contactPerson ||
+        currentCustomer.name ||
+        currentCustomer.companyName ||
+        '-',
       signatorySalesName: signatorySalesName || currentSales?.name || currentUser.name || 'Marketing',
       signatoryWarehouseName: signatoryWarehouseName || 'Bagian Logistik / Gudang',
       signatoryFinanceName: signatoryFinanceName || 'Bagian Keuangan',
@@ -800,13 +825,22 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
               </label>
               <select
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                onChange={(e) => {
+                  const custId = e.target.value;
+                  setSelectedCustomerId(custId);
+                  const found = customers.find((c) => c.id === custId);
+                  if (found) {
+                    setSignatoryCustomerName(
+                      found.name || found.contactPerson || found.companyName || ''
+                    );
+                  }
+                }}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
               >
-                <option value="">-- Pilih Pelanggan --</option>
+                <option value="">-- Pilih Pelanggan (Nama Sekolah / Instansi & Kontak Person) --</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.companyName ? `${c.companyName} (${c.name})` : c.name}
+                    {c.companyName ? `${c.companyName} — ${c.name || c.contactPerson}` : c.name}
                   </option>
                 ))}
               </select>
@@ -814,17 +848,25 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
             {/* Customer Details Snapshot Box */}
             {currentCustomer && (
-              <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1">
-                <div className="font-bold text-slate-900">
-                  {currentCustomer.companyName || currentCustomer.name}
+              <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Nama Sekolah / Instansi</div>
+                  <div className="font-bold text-slate-900 text-sm">
+                    {currentCustomer.companyName || currentCustomer.name}
+                  </div>
                 </div>
-                {currentCustomer.companyName && (
-                  <div className="text-slate-600 text-[11px]">Attn: {currentCustomer.name}</div>
+                {(currentCustomer.name || currentCustomer.contactPerson) && (
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Nama Kontak Person</div>
+                    <div className="text-blue-700 font-bold text-xs">
+                      {currentCustomer.name || currentCustomer.contactPerson}
+                    </div>
+                  </div>
                 )}
-                <div className="text-slate-500 text-[11px] leading-relaxed">
+                <div className="text-slate-500 text-[11px] leading-relaxed pt-1 border-t border-slate-200/60">
                   {currentCustomer.address}, {currentCustomer.city} {currentCustomer.postalCode}
                 </div>
-                <div className="text-slate-500 text-[11px] pt-1 flex flex-wrap gap-x-3">
+                <div className="text-slate-500 text-[11px] flex flex-wrap gap-x-3">
                   <span>Telp: {currentCustomer.phone || '-'}</span>
                   <span>NPWP: {currentCustomer.npwp || '-'}</span>
                 </div>
@@ -968,6 +1010,62 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                         placeholder="Deskripsi rincian spesifikasi teknis, garansi, S/N (opsional)..."
                         className="w-full px-3 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-slate-600 resize-y"
                       />
+
+                      {/* HPP / Modal Entry & Item Profit Breakdown */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 bg-slate-50/70 p-2 rounded-xl text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-amber-900 flex items-center gap-1">
+                            <span>HPP / Modal Satuan:</span>
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-400 text-[10px]">Rp</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.costPrice || 0}
+                              onChange={(e) =>
+                                handleItemFieldChange(
+                                  idx,
+                                  'costPrice',
+                                  Math.max(0, Number(e.target.value))
+                                )
+                              }
+                              placeholder="0"
+                              className="w-28 px-2 py-1 bg-white border border-amber-200/80 rounded-lg text-right font-bold text-amber-950 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            (Total Modal: {formatRupiah((item.quantity || 0) * (item.costPrice || 0))})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          <span className="text-slate-500 font-medium">Est. Laba Item:</span>
+                          <span
+                            className={`font-mono font-bold ${
+                              (item.totalPrice || 0) - (item.quantity || 0) * (item.costPrice || 0) >= 0
+                                ? 'text-emerald-700'
+                                : 'text-rose-600'
+                            }`}
+                          >
+                            {formatRupiah(
+                              (item.totalPrice || 0) - (item.quantity || 0) * (item.costPrice || 0)
+                            )}
+                          </span>
+                          {item.totalPrice > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-slate-200 font-bold text-slate-700">
+                              {(
+                                (((item.totalPrice || 0) -
+                                  (item.quantity || 0) * (item.costPrice || 0)) /
+                                  item.totalPrice) *
+                                100
+                              ).toFixed(0)}
+                              %
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     {/* Quantity */}
@@ -1171,28 +1269,47 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
               <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                Nama Penandatangan Dokumen Invoice (PENERIMA & MARKETING)
+                Nama Penandatangan Dokumen Invoice (PENERIMA & HORMAT KAMI)
               </div>
               <span className="text-[10px] text-slate-500 font-medium">Tercetak rapi di bawah Syarat & Ketentuan</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  1. PENERIMA / Pelanggan
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    1. PENERIMA / Pelanggan
+                  </label>
+                  {currentCustomer && (currentCustomer.contactPerson || currentCustomer.name) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSignatoryCustomerName(
+                          currentCustomer.contactPerson || currentCustomer.name || currentCustomer.companyName || ''
+                        )
+                      }
+                      className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                      title="Gunakan Kontak Person Sekolah"
+                    >
+                      Kontak: {currentCustomer.contactPerson || currentCustomer.name}
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={signatoryCustomerName}
                   onChange={(e) => setSignatoryCustomerName(e.target.value)}
-                  placeholder="Nama Penerima (contoh: Nama Pelanggan / PIC)..."
+                  placeholder="Nama Penerima (Otomatis dari Kontak Person Sekolah)..."
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
                 />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Otomatis terisi dari nama Kontak Person Sekolah / Instansi
+                </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[11px] font-semibold text-slate-700">
-                    2. MARKETING (Nama Sales)
+                    2. HORMAT KAMI (Nama Sales / Pengirim)
                   </label>
                   <div className="flex items-center gap-1.5">
                     {currentSales && (
@@ -1221,7 +1338,7 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                   type="text"
                   value={signatorySalesName}
                   onChange={(e) => setSignatorySalesName(e.target.value)}
-                  placeholder={`Nama Sales / Marketing (contoh: ${currentSales?.name || 'Budi Prasetyo'})...`}
+                  placeholder={`Nama Penandatangan Hormat Kami (contoh: ${currentSales?.name || 'Budi Prasetyo'})...`}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
                 />
               </div>
@@ -1428,6 +1545,43 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* 5. Real-time Laba & HPP Live Analysis Card */}
+            <div className="p-3.5 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-slate-100 rounded-xl border border-slate-800 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <div className="flex items-center gap-1.5 text-amber-400">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Kalkulasi Otomatis Laba & HPP</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-normal">
+                  Real-Time
+                </span>
+              </div>
+              <div className="space-y-1.5 text-xs pt-1.5 border-t border-slate-800">
+                <div className="flex justify-between text-slate-300">
+                  <span>Total Biaya Pokok (HPP):</span>
+                  <span className="font-mono font-bold text-amber-300">
+                    {formatRupiah(liveTotalHpp)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-200 font-bold pt-1.5 border-t border-slate-800/80">
+                  <span>Estimasi Laba Kotor:</span>
+                  <div className="text-right flex items-center gap-1.5">
+                    <span
+                      className={`font-mono text-sm ${
+                        liveGrossProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {liveGrossProfit >= 0 ? '+' : ''}
+                      {formatRupiah(liveGrossProfit)}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-semibold">
+                      {liveProfitMargin.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* 6. Grand Total Highlight Box */}

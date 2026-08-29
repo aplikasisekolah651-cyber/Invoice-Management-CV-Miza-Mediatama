@@ -16,6 +16,7 @@ import { Product, Category, RoleType } from '../../types';
 import { formatRupiah } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
 import { ImportModal } from '../common/ImportModal';
+import { Pagination } from '../common/Pagination';
 
 interface ProductListViewProps {
   products: Product[];
@@ -44,6 +45,10 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'instock'>('all');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
@@ -55,11 +60,18 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
       return (
         p.name.toLowerCase().includes(q) ||
         p.code.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q)) ||
         (p.description && p.description.toLowerCase().includes(q))
       );
     });
   }, [products, categoryFilter, stockFilter, searchQuery]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
   const totalAssetValue = products.reduce((acc, p) => acc + p.sellingPrice * p.stock, 0);
 
@@ -118,39 +130,49 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500">Total Item Produk</span>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
-            {products.length} SKU
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Total Item Barang</span>
+            <Package className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Katalog aktif siap ditagihkan</div>
+          <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2">
+            {products.length} <span className="text-xs font-normal text-slate-400">SKU</span>
+          </div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500">Estimasi Nilai Inventaris</span>
-          <div className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Estimasi Nilai Aset Stok</span>
+            <Tag className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2">
             {formatRupiah(totalAssetValue)}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Berdasarkan stok x harga jual</div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500">Peringatan Stok Menipis</span>
-          <div className="text-xl sm:text-2xl font-bold text-rose-700 mt-1">
-            {products.filter((p) => p.stock <= p.minStock).length} Item
+          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+            <span>Stok Menipis (&le; Min)</span>
+            <AlertTriangle className="w-4 h-4 text-rose-500" />
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Perlu pengadaan ulang</div>
+          <div className="text-xl sm:text-2xl font-bold text-rose-600 mt-2">
+            {products.filter((p) => p.stock <= p.minStock).length}{' '}
+            <span className="text-xs font-normal text-slate-400">Barang</span>
+          </div>
         </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Search & Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari kode, nama barang, spesifikasi..."
+            placeholder="Cari kode, nama barang, kategori..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
@@ -158,7 +180,10 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto text-xs">
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
           >
             <option value="all">Semua Kategori</option>
@@ -171,12 +196,15 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
 
           <select
             value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value as any)}
+            onChange={(e) => {
+              setStockFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
           >
             <option value="all">Semua Status Stok</option>
-            <option value="low">Stok Menipis (Di Bawah Min)</option>
-            <option value="instock">Hanya Tersedia (Ready)</option>
+            <option value="low">Stok Menipis</option>
+            <option value="instock">Ada Stok (&gt; 0)</option>
           </select>
         </div>
       </div>
@@ -209,10 +237,10 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p, idx) => (
+                paginatedProducts.map((p, idx) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                      {idx + 1}
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 text-xs sm:text-sm">{p.name}</div>
@@ -238,7 +266,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono text-slate-600">
-                      {formatRupiah(p.purchasePrice)}
+                      {formatRupiah(p.purchasePrice || p.costPrice || 0)}
                     </td>
                     <td className="py-3.5 px-4 text-right font-bold font-mono text-slate-900 text-sm">
                       {formatRupiah(p.sellingPrice)}
@@ -282,6 +310,18 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredProducts.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 20, 50, 100]}
+          itemLabel="barang"
+        />
       </div>
 
       {/* Modal Import Barang */}

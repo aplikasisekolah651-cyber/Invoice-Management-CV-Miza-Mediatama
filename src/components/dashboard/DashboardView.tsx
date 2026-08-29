@@ -19,7 +19,12 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { Invoice, Payment, RoleType, Customer, Product, ServiceItem } from '../../types';
-import { formatRupiah, formatShortDate, formatIndonesianDate } from '../../services/calculation';
+import {
+  formatRupiah,
+  formatShortDate,
+  formatIndonesianDate,
+  resolveItemCostPrice,
+} from '../../services/calculation';
 import { StatusBadge } from '../common/Badge';
 
 interface DashboardViewProps {
@@ -90,18 +95,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalDppAmount = validInvoices.reduce((acc, i) => acc + (i.taxableBase || 0), 0);
   const totalPpnAmount = validInvoices.reduce((acc, i) => acc + (i.ppnAmount || 0), 0);
 
-  // Calculate HPP and Profit
+  // Calculate HPP and Realized Profit from paid in full (lunas) invoices
+  let totalDppPaid = 0;
   const totalHppAmount = validInvoices.reduce((acc, i) => {
-    if (i.totalHpp !== undefined && i.totalHpp > 0) return acc + i.totalHpp;
-    const calc = i.items.reduce(
-      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
+    const isPaid = i.status === 'paid' || (i.grandTotal > 0 && i.amountPaid >= i.grandTotal) || (i.remainingBalance <= 0 && i.amountPaid > 0);
+    if (!isPaid) return acc;
+    totalDppPaid += (i.taxableBase || 0);
+    const calc = (i.items || []).reduce(
+      (sum, item) =>
+        sum + (Number(item.quantity) || 0) * resolveItemCostPrice(item, products, services),
       0
     );
     return acc + calc;
   }, 0);
 
-  const totalGrossProfit = totalDppAmount - totalHppAmount;
-  const grossMarginPercent = totalDppAmount > 0 ? ((totalGrossProfit / totalDppAmount) * 100).toFixed(1) : '0';
+  const totalGrossProfit = totalDppPaid - totalHppAmount;
+  const grossMarginPercent = totalDppPaid > 0 ? ((totalGrossProfit / totalDppPaid) * 100).toFixed(1) : '0';
 
   const thisMonthInvoices = invoices.filter((i) => {
     const d = new Date(i.invoiceDate);
@@ -111,17 +120,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const thisMonthAmount = thisMonthInvoices.reduce((acc, i) => acc + i.grandTotal, 0);
   const thisMonthDpp = thisMonthInvoices.reduce((acc, i) => acc + (i.taxableBase || 0), 0);
   const thisMonthPpn = thisMonthInvoices.reduce((acc, i) => acc + (i.ppnAmount || 0), 0);
+  let thisMonthDppPaid = 0;
   const thisMonthHpp = thisMonthInvoices.reduce((acc, i) => {
-    if (i.totalHpp !== undefined && i.totalHpp > 0) return acc + i.totalHpp;
+    const isPaid = i.status === 'paid' || (i.grandTotal > 0 && i.amountPaid >= i.grandTotal) || (i.remainingBalance <= 0 && i.amountPaid > 0);
+    if (!isPaid) return acc;
+    thisMonthDppPaid += (i.taxableBase || 0);
     return (
       acc +
-      i.items.reduce(
-        (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
+      (i.items || []).reduce(
+        (sum, item) =>
+          sum + (Number(item.quantity) || 0) * resolveItemCostPrice(item, products, services),
         0
       )
     );
   }, 0);
-  const thisMonthProfit = thisMonthDpp - thisMonthHpp;
+  const thisMonthProfit = thisMonthDppPaid - thisMonthHpp;
 
   const unpaidInvoices = invoices.filter((i) => i.status === 'sent' || i.status === 'partial' || i.status === 'overdue');
   const totalUnpaidAmount = unpaidInvoices.reduce((acc, i) => acc + i.remainingBalance, 0);
@@ -388,7 +401,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-slate-800/60 backdrop-blur-xs p-4 rounded-xl border border-slate-700/60 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider">
-                Total Biaya Modal (HPP)
+                Total Biaya Modal (HPP Lunas)
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-200">
                 Pengadaan

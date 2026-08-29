@@ -16,6 +16,7 @@ import {
 import { Payment, Invoice, RoleType } from '../../types';
 import { formatRupiah, formatShortDate, formatIndonesianDate } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
+import { Pagination } from '../common/Pagination';
 
 interface PaymentListViewProps {
   payments: Payment[];
@@ -41,6 +42,10 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
   const [methodFilter, setMethodFilter] = useState('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Selected payment for receipt preview modal
   const [selectedReceipt, setSelectedReceipt] = useState<Payment | null>(null);
@@ -71,6 +76,13 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
       return true;
     });
   }, [payments, methodFilter, searchQuery, dateStart, dateEnd]);
+
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage) || 1;
+
+  const paginatedPayments = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredPayments.slice(start, start + itemsPerPage);
+  }, [filteredPayments, currentPage, itemsPerPage]);
 
   const totalAmountFiltered = filteredPayments.reduce((acc, p) => acc + p.amount, 0);
 
@@ -156,7 +168,10 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
             type="text"
             placeholder="Cari bukti bayar, no invoice, pelanggan..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           />
         </div>
@@ -164,7 +179,10 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto text-xs">
           <select
             value={methodFilter}
-            onChange={(e) => setMethodFilter(e.target.value)}
+            onChange={(e) => {
+              setMethodFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
           >
             <option value="all">Semua Metode Bayar</option>
@@ -180,14 +198,20 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
             <input
               type="date"
               value={dateStart}
-              onChange={(e) => setDateStart(e.target.value)}
+              onChange={(e) => {
+                setDateStart(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-xs bg-transparent focus:outline-none"
             />
             <span>-</span>
             <input
               type="date"
               value={dateEnd}
-              onChange={(e) => setDateEnd(e.target.value)}
+              onChange={(e) => {
+                setDateEnd(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-xs bg-transparent focus:outline-none"
             />
           </div>
@@ -222,10 +246,10 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((p, idx) => (
+                paginatedPayments.map((p, idx) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                      {idx + 1}
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
                     <td className="py-3.5 px-4 font-bold font-mono text-emerald-700">
                       {p.paymentNumber}
@@ -284,6 +308,18 @@ export const PaymentListView: React.FC<PaymentListViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredPayments.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 20, 50, 100]}
+          itemLabel="pembayaran"
+        />
       </div>
 
       {/* Kuitansi / Receipt Modal Preview */}

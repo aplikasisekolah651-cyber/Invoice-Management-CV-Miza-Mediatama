@@ -29,7 +29,7 @@ import {
   generateInitialInvoices,
   initialAuditLogs,
 } from './initialData';
-import { determineInvoiceStatus } from './calculation';
+import { determineInvoiceStatus, resolveItemCostPrice } from './calculation';
 import { FirebaseSyncService } from './firebaseSync';
 
 const STORAGE_KEYS = {
@@ -426,13 +426,45 @@ export const StorageService = {
   // --- INVOICES ---
   getInvoices(): Invoice[] {
     const invoices = loadFromStorage<Invoice[]>(STORAGE_KEYS.INVOICES, []);
-    // Check dynamic overdue status
+    const products = loadFromStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+    const services = loadFromStorage<ServiceItem[]>(STORAGE_KEYS.SERVICES, []);
+
+    // Check dynamic overdue status and recalculate HPP / profit if HPP is entered/updated
     const updated = invoices.map((inv) => {
       const dynamicStatus = determineInvoiceStatus(inv.status, inv.grandTotal, inv.amountPaid, inv.dueDate);
-      if (dynamicStatus !== inv.status && inv.status !== 'cancelled' && inv.status !== 'draft') {
-        return { ...inv, status: dynamicStatus };
-      }
-      return inv;
+      
+      let computedHpp = 0;
+      let hasItemChanges = false;
+      const resolvedItems = (inv.items || []).map((item) => {
+        const cost = resolveItemCostPrice(item, products, services);
+        const qty = Number(item.quantity) || 0;
+        const totalCost = qty * cost;
+        computedHpp += totalCost;
+
+        if (cost !== item.costPrice || totalCost !== item.totalCost) {
+          hasItemChanges = true;
+        }
+
+        return {
+          ...item,
+          costPrice: cost,
+          totalCost,
+        };
+      });
+
+      const dpp = Number(inv.taxableBase) || Number(inv.subtotal) || 0;
+      const computedGrossProfit = dpp - computedHpp;
+
+      return {
+        ...inv,
+        status:
+          dynamicStatus !== inv.status && inv.status !== 'cancelled' && inv.status !== 'draft'
+            ? dynamicStatus
+            : inv.status,
+        items: hasItemChanges ? resolvedItems : inv.items,
+        totalHpp: computedHpp,
+        grossProfit: computedGrossProfit,
+      };
     });
     return updated;
   },

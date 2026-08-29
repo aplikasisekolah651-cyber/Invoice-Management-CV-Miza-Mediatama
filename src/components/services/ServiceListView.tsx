@@ -13,6 +13,7 @@ import {
 import { ServiceItem, Category, RoleType } from '../../types';
 import { formatRupiah } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
+import { Pagination } from '../common/Pagination';
 
 interface ServiceListViewProps {
   services: ServiceItem[];
@@ -37,6 +38,10 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const filteredServices = useMemo(() => {
     return services.filter((s) => {
       if (categoryFilter !== 'all' && s.category !== categoryFilter) return false;
@@ -45,11 +50,18 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
       return (
         s.name.toLowerCase().includes(q) ||
         s.code.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
+        (s.category && s.category.toLowerCase().includes(q)) ||
         (s.description && s.description.toLowerCase().includes(q))
       );
     });
   }, [services, categoryFilter, searchQuery]);
+
+  const totalPages = Math.ceil(filteredServices.length / itemsPerPage) || 1;
+
+  const paginatedServices = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredServices.slice(start, start + itemsPerPage);
+  }, [filteredServices, currentPage, itemsPerPage]);
 
   const handleExportExcel = () => {
     ExportService.exportServicesToExcel(
@@ -100,15 +112,21 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
             type="text"
             placeholder="Cari kode, nama layanan jasa..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           />
         </div>
 
-        <div className="flex items-center gap-2.5 w-full md:w-auto text-xs">
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto text-xs">
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
           >
             <option value="all">Semua Kategori Jasa</option>
@@ -153,10 +171,10 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredServices.map((s, idx) => (
+                paginatedServices.map((s, idx) => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                      {idx + 1}
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 text-xs sm:text-sm">{s.name}</div>
@@ -218,6 +236,18 @@ export const ServiceListView: React.FC<ServiceListViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredServices.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 20, 50]}
+          itemLabel="layanan jasa"
+        />
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import { Invoice, InvoiceStatus, RoleType, Customer } from '../../types';
 import { formatRupiah, formatShortDate } from '../../services/calculation';
 import { StatusBadge } from '../common/Badge';
 import { ExportService } from '../../services/exportService';
+import { Pagination } from '../common/Pagination';
 
 interface InvoiceListViewProps {
   invoices: Invoice[];
@@ -67,7 +68,10 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [dateFilterStart, setDateFilterStart] = useState<string>('');
   const [dateFilterEnd, setDateFilterEnd] = useState<string>('');
-  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const handleCreate = () => {
     if (onCreateInvoice) {
@@ -180,6 +184,13 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
     });
   }, [invoices, activeTab, searchQuery, dateFilterStart, dateFilterEnd]);
 
+  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage) || 1;
+
+  const paginatedInvoices = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredInvoices.slice(start, start + itemsPerPage);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
+
   // Tab Summary metrics
   const totalAmountFiltered = filteredInvoices
     .filter((i) => i.status !== 'cancelled')
@@ -200,31 +211,31 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Actions */}
+      {/* Top Header & Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Daftar Invoice Tagihan
+            Daftar Invoice & Penagihan
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Kelola pembuatan faktur, pelacakan pembayaran, dan penerbitan dokumen tagihan
+            Kelola faktur penjualan, status pelunasan, termin pembayaran, dan cetak dokumen resmi
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-center">
+        <div className="flex items-center gap-2 self-start sm:self-center">
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
-            title="Export data invoice ke format Excel (.xlsx)"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
+            title="Export Daftar Invoice ke Excel"
           >
             <Download className="w-4 h-4 text-emerald-600" />
-            <span>Export Excel</span>
+            <span className="hidden sm:inline">Export Excel</span>
           </button>
 
           {!isManager && (
             <button
               onClick={handleCreate}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>+ Buat Invoice Baru</span>
@@ -233,41 +244,48 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
         </div>
       </div>
 
-      {/* Filter Tabs Navigation */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-slate-200 custom-scrollbar">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3.5 py-2.5 text-xs font-semibold rounded-t-xl transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer border-b-2 ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
-                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-200 text-slate-700'
+      {/* Tabs Filter Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none text-xs border-b border-slate-200">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setCurrentPage(1);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
               }`}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              <span>{tab.label}</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  isActive ? 'bg-blue-800/80 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* Search & Date Filter Card */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari no invoice, customer, PO..."
+            placeholder="Cari no. invoice, PO, customer, sales..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
           />
         </div>
@@ -279,14 +297,20 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
             <input
               type="date"
               value={dateFilterStart}
-              onChange={(e) => setDateFilterStart(e.target.value)}
+              onChange={(e) => {
+                setDateFilterStart(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-xs bg-transparent focus:outline-none"
             />
             <span>s/d</span>
             <input
               type="date"
               value={dateFilterEnd}
-              onChange={(e) => setDateFilterEnd(e.target.value)}
+              onChange={(e) => {
+                setDateFilterEnd(e.target.value);
+                setCurrentPage(1);
+              }}
               className="text-xs bg-transparent focus:outline-none"
             />
           </div>
@@ -297,8 +321,9 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                 setSearchQuery('');
                 setDateFilterStart('');
                 setDateFilterEnd('');
+                setCurrentPage(1);
               }}
-              className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1"
+              className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 cursor-pointer"
             >
               Reset Filter
             </button>
@@ -363,14 +388,14 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv, idx) => {
+                paginatedInvoices.map((inv, idx) => {
                   const isLocked = inv.status === 'paid' || inv.status === 'cancelled';
                   const canEdit = !isLocked || isAdmin;
 
                   return (
                     <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td className="py-3.5 px-4">
                         <button
@@ -391,9 +416,9 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
                         <div className="font-bold text-slate-900">
                           {inv.customerSnapshot?.companyName || inv.customerSnapshot?.name}
                         </div>
-                        {inv.customerSnapshot?.companyName && inv.customerSnapshot?.name && (
-                          <div className="text-[11px] text-slate-500">
-                            Attn: {inv.customerSnapshot.name}
+                        {(inv.customerSnapshot?.contactPerson || (inv.customerSnapshot?.companyName && inv.customerSnapshot?.name)) && (
+                          <div className="text-[11px] text-slate-600 font-medium">
+                            Attn : {inv.customerSnapshot?.contactPerson || inv.customerSnapshot?.name}
                           </div>
                         )}
                         <div className="text-[10px] text-slate-400">
@@ -507,6 +532,18 @@ export const InvoiceListView: React.FC<InvoiceListViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredInvoices.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 20, 50, 100]}
+          itemLabel="invoice"
+        />
       </div>
     </div>
   );

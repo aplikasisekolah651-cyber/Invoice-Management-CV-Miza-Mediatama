@@ -130,13 +130,13 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Nama Perusahaan / Instansi
+                Nama Sekolah / Instansi / Perusahaan
               </label>
               <input
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Dinas / PT / CV / Instansi..."
+                placeholder="SMP N 1 Bantul / Dinas / PT / Instansi..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:bg-white focus:outline-none"
               />
             </div>
@@ -151,20 +151,20 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Bpk / Ibu..."
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
+                placeholder="Nama Lengkap Kontak Person (contoh: Drs. Hendra Supriyadi)..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-medium"
               />
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Jabatan / Keterangan Kontak
+                Jabatan / Bagian <span className="text-slate-400 font-normal">(Opsional)</span>
               </label>
               <input
                 type="text"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
-                placeholder="PPK / Bagian Sarpras / Keuangan..."
+                placeholder="Kepala Sekolah / PPK / Sarpras / Keuangan..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
               />
             </div>

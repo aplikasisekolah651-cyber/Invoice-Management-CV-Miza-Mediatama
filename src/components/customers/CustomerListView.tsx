@@ -9,13 +9,13 @@ import {
   Trash2,
   Phone,
   Mail,
-  MapPin,
   Eye,
-  FileSpreadsheet,
 } from 'lucide-react';
 import { Customer, Invoice, Payment, RoleType } from '../../types';
 import { ExportService } from '../../services/exportService';
 import { ImportModal } from '../common/ImportModal';
+import { Pagination } from '../common/Pagination';
+import { CustomerDetailModal } from './CustomerDetailModal';
 
 interface CustomerListViewProps {
   customers: Customer[];
@@ -47,6 +47,10 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
   const [selectedDetailCustomer, setSelectedDetailCustomer] = useState<Customer | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
       if (!searchQuery.trim()) return true;
@@ -57,10 +61,18 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
         c.code.toLowerCase().includes(q) ||
         c.phone.toLowerCase().includes(q) ||
         c.city.toLowerCase().includes(q) ||
-        (c.npwp && c.npwp.toLowerCase().includes(q))
+        (c.npwp && c.npwp.toLowerCase().includes(q)) ||
+        (c.address && c.address.toLowerCase().includes(q))
       );
     });
   }, [customers, searchQuery]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage) || 1;
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredCustomers.slice(start, start + itemsPerPage);
+  }, [filteredCustomers, currentPage, itemsPerPage]);
 
   const handleExportExcel = () => {
     ExportService.exportCustomersToExcel(
@@ -122,7 +134,10 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
             type="text"
             placeholder="Cari instansi, nama, kota, telepon, NPWP..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
@@ -143,16 +158,14 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                 <th className="py-3.5 px-4">Instansi / Perusahaan</th>
                 <th className="py-3.5 px-4">Kontak Person</th>
                 <th className="py-3.5 px-4">Telepon & Email</th>
-                <th className="py-3.5 px-4">Alamat & Kota</th>
                 <th className="py-3.5 px-4">NPWP</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
                 <th className="py-3.5 px-4 text-center w-28">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     <Building className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">Tidak ada data pelanggan ditemukan</p>
                     <p className="text-xs text-slate-400">
@@ -161,10 +174,10 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((c, idx) => (
+                paginatedCustomers.map((c, idx) => (
                   <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                      {idx + 1}
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 text-xs sm:text-sm">
@@ -182,25 +195,8 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                       <div className="font-medium text-slate-900">{c.phone}</div>
                       {c.email && <div className="text-[11px] text-slate-500">{c.email}</div>}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="text-slate-700 max-w-[200px] truncate" title={c.address}>
-                        {c.address}
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-medium">{c.city}</div>
-                    </td>
                     <td className="py-3.5 px-4 font-mono text-slate-600">
                       {c.npwp || '-'}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          c.isActive
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {c.isActive ? 'Aktif' : 'Non-Aktif'}
-                      </span>
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -237,7 +233,32 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredCustomers.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 20, 50, 100]}
+          itemLabel="pelanggan"
+        />
       </div>
+
+      {/* Modal Detail Pelanggan & Riwayat Transaksi */}
+      <CustomerDetailModal
+        customer={selectedDetailCustomer}
+        invoices={invoices}
+        payments={payments}
+        isOpen={!!selectedDetailCustomer}
+        onClose={() => setSelectedDetailCustomer(null)}
+        onViewInvoice={(invoiceId) => {
+          setSelectedDetailCustomer(null);
+          onViewInvoice(invoiceId);
+        }}
+      />
 
       {/* Modal Import Pelanggan */}
       <ImportModal

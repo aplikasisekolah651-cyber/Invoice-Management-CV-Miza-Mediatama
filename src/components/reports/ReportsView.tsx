@@ -31,9 +31,11 @@ import {
   formatRupiah,
   formatShortDate,
   formatIndonesianDate,
+  resolveItemCostPrice,
 } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
 import { ReportPrintModal, ReportType } from './ReportPrintModal';
+import { Pagination } from '../common/Pagination';
 
 interface ReportsViewProps {
   invoices: Invoice[];
@@ -78,6 +80,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [selectedSalesId, setSelectedSalesId] = useState('all');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
+  // Pagination states for report tables
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const handleTabChange = (newTab: ReportType) => {
+    setReportTab(newTab);
+    setCurrentPage(1);
+  };
+
   // Filtered invoices for financial reports
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
@@ -90,61 +101,82 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     });
   }, [invoices, selectedCustomerId, selectedSalesId, dateStart, dateEnd]);
 
-  // Financial Recap: Omzet, HPP, Laba Rugi, PPN
+  // Financial Recap: Omzet, HPP (Terjual Lunas), Laba Rugi, PPN
   const financialRecap = useMemo(() => {
     let totalDpp = 0;
+    let totalDppPaid = 0;
     let totalPpn = 0;
     let totalGrandTotal = 0;
-    let totalHpp = 0;
+    let totalHpp = 0; // Akumulasi HPP dari barang/jasa yang sudah terjual lunas
+    let totalHppAll = 0; // Total estimasi seluruh faktur
     let totalPaid = 0;
     let totalUnpaid = 0;
+    let paidInvoicesCount = 0;
 
     const invoiceRecaps = filteredInvoices.map((inv) => {
       const dpp = inv.taxableBase || inv.subtotal;
       const ppn = inv.isPpnActive ? inv.ppnAmount : 0;
       const grand = inv.grandTotal;
-      const hpp =
-        inv.totalHpp !== undefined && inv.totalHpp > 0
-          ? inv.totalHpp
-          : inv.items.reduce(
-              (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
-              0
-            );
-      const grossProfit = dpp - hpp;
-      const marginPct = dpp > 0 ? (grossProfit / dpp) * 100 : 0;
+      const isPaid =
+        inv.status === 'paid' ||
+        (inv.grandTotal > 0 && inv.amountPaid >= inv.grandTotal) ||
+        (inv.remainingBalance <= 0 && inv.amountPaid > 0);
+
+      const itemHpp = (inv.items || []).reduce(
+        (sum, item) =>
+          sum + (Number(item.quantity) || 0) * resolveItemCostPrice(item, products, services),
+        0
+      );
+
+      // HPP dan Laba Rugi hanya dihitung/masuk laporan setelah status Lunas
+      const hpp = isPaid ? itemHpp : 0;
+      const grossProfit = isPaid ? dpp - itemHpp : 0;
+      const marginPct = isPaid && dpp > 0 ? (grossProfit / dpp) * 100 : 0;
 
       totalDpp += dpp;
       totalPpn += ppn;
       totalGrandTotal += grand;
-      totalHpp += hpp;
       totalPaid += inv.amountPaid;
       totalUnpaid += inv.remainingBalance;
+      totalHppAll += itemHpp;
+
+      // Realisasi khusus dari transaksi yang sudah terjual lunas
+      if (isPaid) {
+        totalDppPaid += dpp;
+        totalHpp += itemHpp;
+        paidInvoicesCount += 1;
+      }
 
       return {
         ...inv,
         dpp,
         ppn,
         hpp,
+        itemHpp,
         grossProfit,
         marginPct,
+        isPaid,
       };
     });
 
-    const netProfit = totalDpp - totalHpp;
-    const overallMarginPct = totalDpp > 0 ? (netProfit / totalDpp) * 100 : 0;
+    const netProfit = totalDppPaid - totalHpp;
+    const overallMarginPct = totalDppPaid > 0 ? (netProfit / totalDppPaid) * 100 : 0;
 
     return {
       totalDpp,
+      totalDppPaid,
       totalPpn,
       totalGrandTotal,
       totalHpp,
+      totalHppAll,
+      paidInvoicesCount,
       netProfit,
       overallMarginPct,
       totalPaid,
       totalUnpaid,
       invoiceRecaps,
     };
-  }, [filteredInvoices]);
+  }, [filteredInvoices, products, services]);
 
   // Sales totals
   const totalOmzet = filteredInvoices.reduce((acc, i) => acc + i.grandTotal, 0);
@@ -229,6 +261,52 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [invoices]);
 
+  // Aging complete list
+  const allAgingList = useMemo(() => {
+    return [
+      ...agingData.overdueOver60.map((i) => ({ ...i, bucket: '> 60 Hari (Macet)', badgeClass: 'bg-rose-100 text-rose-800' })),
+      ...agingData.overdue31to60.map((i) => ({ ...i, bucket: '31 - 60 Hari', badgeClass: 'bg-orange-100 text-orange-800' })),
+      ...agingData.overdue1to30.map((i) => ({ ...i, bucket: '1 - 30 Hari', badgeClass: 'bg-amber-100 text-amber-800' })),
+      ...agingData.current.map((i) => ({ ...i, bucket: 'Current (Belum Jatuh Tempo)', badgeClass: 'bg-blue-100 text-blue-800' })),
+    ];
+  }, [agingData]);
+
+  // Paginated data for each tab
+  const paginatedProfitLoss = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return financialRecap.invoiceRecaps.slice(start, start + itemsPerPage);
+  }, [financialRecap.invoiceRecaps, currentPage, itemsPerPage]);
+
+  const paginatedSales = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredInvoices.slice(start, start + itemsPerPage);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
+
+  const paginatedPpn = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredInvoices.slice(start, start + itemsPerPage);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
+
+  const paginatedAging = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return allAgingList.slice(start, start + itemsPerPage);
+  }, [allAgingList, currentPage, itemsPerPage]);
+
+  const paginatedPayments = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredPayments.slice(start, start + itemsPerPage);
+  }, [filteredPayments, currentPage, itemsPerPage]);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return productPerformance.slice(start, start + itemsPerPage);
+  }, [productPerformance, currentPage, itemsPerPage]);
+
+  const paginatedAuditLogs = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return auditLogs.slice(start, start + itemsPerPage);
+  }, [auditLogs, currentPage, itemsPerPage]);
+
   // Handle excel export of currently selected report
   const handleExportCurrentReport = () => {
     if (reportTab === 'profit-loss') {
@@ -300,7 +378,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-1 sm:gap-2 border-b border-slate-200 text-xs font-semibold">
         <button
-          onClick={() => setReportTab('profit-loss')}
+          onClick={() => handleTabChange('profit-loss')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'profit-loss'
               ? 'border-emerald-600 text-emerald-700 font-bold'
@@ -312,7 +390,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('sales')}
+          onClick={() => handleTabChange('sales')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'sales'
               ? 'border-blue-600 text-blue-700 font-bold'
@@ -324,7 +402,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('ppn')}
+          onClick={() => handleTabChange('ppn')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'ppn'
               ? 'border-indigo-600 text-indigo-700 font-bold'
@@ -336,7 +414,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('aging')}
+          onClick={() => handleTabChange('aging')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'aging'
               ? 'border-amber-600 text-amber-700 font-bold'
@@ -348,7 +426,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('cash')}
+          onClick={() => handleTabChange('cash')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'cash'
               ? 'border-teal-600 text-teal-700 font-bold'
@@ -360,7 +438,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('products')}
+          onClick={() => handleTabChange('products')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'products'
               ? 'border-purple-600 text-purple-700 font-bold'
@@ -372,7 +450,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </button>
 
         <button
-          onClick={() => setReportTab('audit')}
+          onClick={() => handleTabChange('audit')}
           className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-colors cursor-pointer ${
             reportTab === 'audit'
               ? 'border-slate-800 text-slate-900 font-bold'
@@ -394,14 +472,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <input
                 type="date"
                 value={dateStart}
-                onChange={(e) => setDateStart(e.target.value)}
+                onChange={(e) => {
+                  setDateStart(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="bg-transparent focus:outline-none"
               />
               <span>s/d</span>
               <input
                 type="date"
                 value={dateEnd}
-                onChange={(e) => setDateEnd(e.target.value)}
+                onChange={(e) => {
+                  setDateEnd(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="bg-transparent focus:outline-none"
               />
             </div>
@@ -410,6 +494,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 onClick={() => {
                   setDateStart('');
                   setDateEnd('');
+                  setCurrentPage(1);
                 }}
                 className="text-slate-400 hover:text-slate-600 font-semibold"
               >
@@ -421,7 +506,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              onChange={(e) => {
+                setSelectedCustomerId(e.target.value);
+                setCurrentPage(1);
+              }}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
             >
               <option value="all">Semua Pelanggan</option>
@@ -434,7 +522,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
             <select
               value={selectedSalesId}
-              onChange={(e) => setSelectedSalesId(e.target.value)}
+              onChange={(e) => {
+                setSelectedSalesId(e.target.value);
+                setCurrentPage(1);
+              }}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none"
             >
               <option value="all">Semua Sales</option>
@@ -455,32 +546,37 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Omzet Penjualan Bersih (DPP)
+                Omzet Penjualan (DPP Lunas)
               </span>
               <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-mono">
-                {formatRupiah(financialRecap.totalDpp)}
+                {formatRupiah(financialRecap.totalDppPaid)}
               </div>
               <div className="text-[11px] text-slate-500 mt-0.5">
-                Dasar pengenaan sebelum PPN ({filteredInvoices.length} Faktur)
+                Dari {financialRecap.paidInvoicesCount} faktur lunas (Total Terbit: {formatRupiah(financialRecap.totalDpp)})
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs bg-amber-50/20">
-              <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-                Total Biaya Modal (HPP)
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
+                  Total Biaya Modal (HPP Lunas)
+                </span>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold rounded-md text-[10px]">
+                  {financialRecap.paidInvoicesCount} Lunas
+                </span>
+              </div>
               <div className="text-xl sm:text-2xl font-black text-amber-900 mt-1 font-mono">
                 {formatRupiah(financialRecap.totalHpp)}
               </div>
               <div className="text-[11px] text-amber-700 mt-0.5">
-                Akumulasi harga beli pengadaan barang & modal jasa
+                Akumulasi HPP (data terbaru master barang/jasa) dari transaksi lunas
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-xs bg-emerald-50/30">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
-                  Estimasi Laba Kotor
+                  Realisasi Laba Bersih
                 </span>
                 <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-md text-[10px]">
                   Margin {financialRecap.overallMarginPct.toFixed(1)}%
@@ -490,7 +586,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 {financialRecap.netProfit >= 0 ? '+' : ''}{formatRupiah(financialRecap.netProfit)}
               </div>
               <div className="text-[11px] text-emerald-700 mt-0.5">
-                (Omzet DPP - Total HPP Modal)
+                (DPP Lunas - HPP Lunas)
               </div>
             </div>
 
@@ -515,11 +611,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   Rekapitulasi Laba Rugi Per Faktur Tagihan
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Daftar transaksi lengkap dengan perhitungan HPP, margin keuntungan, dan status pelunasan
+                  HPP dihitung otomatis dari data master terbaru dan diakumulasikan khusus untuk transaksi yang telah berstatus LUNAS
                 </p>
               </div>
               <div className="text-xs font-semibold text-slate-600">
-                Total: <span className="text-emerald-700 font-bold">{formatRupiah(financialRecap.netProfit)}</span>
+                Total Laba Bersih Lunas: <span className="text-emerald-700 font-bold">{formatRupiah(financialRecap.netProfit)}</span>
               </div>
             </div>
 
@@ -530,6 +626,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <th className="py-3.5 px-4 w-10 text-center">No</th>
                     <th className="py-3.5 px-4">No. Invoice & Tanggal</th>
                     <th className="py-3.5 px-4">Pelanggan</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-right">Omzet DPP</th>
                     <th className="py-3.5 px-4 text-right">Modal (HPP)</th>
                     <th className="py-3.5 px-4 text-right">Laba Kotor</th>
@@ -542,15 +639,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {financialRecap.invoiceRecaps.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                      <td colSpan={11} className="py-12 text-center text-slate-400">
                         Tidak ada transaksi ditemukan pada periode ini.
                       </td>
                     </tr>
                   ) : (
-                    financialRecap.invoiceRecaps.map((inv, idx) => (
+                    paginatedProfitLoss.map((inv, idx) => (
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                          {idx + 1}
+                          {(currentPage - 1) * itemsPerPage + idx + 1}
                         </td>
                         <td className="py-3.5 px-4">
                           <button
@@ -566,29 +663,76 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <td className="py-3.5 px-4 font-semibold text-slate-900">
                           {inv.customerSnapshot?.companyName || inv.customerSnapshot?.name}
                         </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {inv.isPaid ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              Lunas
+                            </span>
+                          ) : inv.status === 'partial' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              Sebagian
+                            </span>
+                          ) : inv.status === 'overdue' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                              Jatuh Tempo
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                              Belum Lunas
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3.5 px-4 text-right font-mono text-slate-900">
                           {formatRupiah(inv.dpp)}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono text-amber-800">
-                          {formatRupiah(inv.hpp)}
+                        <td className="py-3.5 px-4 text-right font-mono">
+                          {inv.isPaid ? (
+                            <>
+                              <span className="text-amber-800 font-bold">{formatRupiah(inv.hpp)}</span>
+                              <span className="block text-[9px] text-emerald-600 font-sans font-semibold">
+                                (HPP Terakui)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-slate-400">Rp 0</span>
+                              <span className="block text-[9px] text-slate-400 font-sans">
+                                (Menunggu Lunas)
+                              </span>
+                            </>
+                          )}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
-                          {inv.grossProfit >= 0 ? '+' : ''}{formatRupiah(inv.grossProfit)}
+                        <td className="py-3.5 px-4 text-right font-mono font-bold">
+                          {inv.isPaid ? (
+                            <span className="text-emerald-700">
+                              {inv.grossProfit >= 0 ? '+' : ''}{formatRupiah(inv.grossProfit)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">
+                              Rp 0 <span className="block text-[9px] font-sans">(Menunggu Lunas)</span>
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              inv.marginPct >= 20
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : inv.marginPct >= 10
-                                ? 'bg-blue-100 text-blue-800'
-                                : inv.marginPct >= 0
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            {inv.marginPct.toFixed(1)}%
-                          </span>
+                          {inv.isPaid ? (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                inv.marginPct >= 20
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : inv.marginPct >= 10
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : inv.marginPct >= 0
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {inv.marginPct.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-400">
+                              -
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono text-slate-600">
                           {formatRupiah(inv.ppn)}
@@ -611,13 +755,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 {financialRecap.invoiceRecaps.length > 0 && (
                   <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-200">
                     <tr>
-                      <td colSpan={3} className="py-3.5 px-4 text-right text-slate-900">
-                        TOTAL KESELURUHAN:
+                      <td colSpan={4} className="py-3.5 px-4 text-right text-slate-900">
+                        TOTAL REALISASI (FAKTUR LUNAS):
                       </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-900">
-                        {formatRupiah(financialRecap.totalDpp)}
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-900" title={`Total DPP Lunas: ${formatRupiah(financialRecap.totalDppPaid)} (Semua DPP: ${formatRupiah(financialRecap.totalDpp)})`}>
+                        {formatRupiah(financialRecap.totalDppPaid)}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-amber-900">
+                      <td className="py-3.5 px-4 text-right font-mono text-amber-900" title="Akumulasi HPP dari barang/jasa yang terjual lunas">
                         {formatRupiah(financialRecap.totalHpp)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-emerald-800 text-sm">
@@ -638,6 +782,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 )}
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(financialRecap.invoiceRecaps.length / itemsPerPage) || 1}
+              totalItems={financialRecap.invoiceRecaps.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="faktur"
+            />
           </div>
         </div>
       )}
@@ -691,10 +847,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredInvoices.map((inv, idx) => (
+                  {paginatedPpn.map((inv, idx) => (
                     <tr key={inv.id} className="hover:bg-slate-50">
                       <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                         {inv.invoiceNumber}
@@ -733,6 +889,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredInvoices.length / itemsPerPage) || 1}
+              totalItems={filteredInvoices.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="faktur pajak"
+            />
           </div>
         </div>
       )}
@@ -800,10 +968,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredInvoices.map((inv, idx) => (
+                  {paginatedSales.map((inv, idx) => (
                     <tr key={inv.id} className="hover:bg-slate-50">
                       <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-700">
                         <button
@@ -842,6 +1010,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredInvoices.length / itemsPerPage) || 1}
+              totalItems={filteredInvoices.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="invoice"
+            />
           </div>
         </div>
       )}
@@ -902,12 +1082,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {/* Overdue Table */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-sm">
-              Daftar Tagihan Menunggak & Piutang Berjalan
+              Daftar Tagihan Menunggak & Piutang Berjalan ({allAgingList.length} Tagihan)
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                   <tr>
+                    <th className="py-3 px-4 w-10 text-center">No</th>
                     <th className="py-3 px-4">No. Invoice</th>
                     <th className="py-3 px-4">Pelanggan</th>
                     <th className="py-3 px-4">Jatuh Tempo</th>
@@ -918,13 +1099,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {[
-                    ...agingData.overdueOver60.map((i) => ({ ...i, bucket: '> 60 Hari (Macet)', badgeClass: 'bg-rose-100 text-rose-800' })),
-                    ...agingData.overdue31to60.map((i) => ({ ...i, bucket: '31 - 60 Hari', badgeClass: 'bg-orange-100 text-orange-800' })),
-                    ...agingData.overdue1to30.map((i) => ({ ...i, bucket: '1 - 30 Hari', badgeClass: 'bg-amber-100 text-amber-800' })),
-                    ...agingData.current.map((i) => ({ ...i, bucket: 'Current (Belum Jatuh Tempo)', badgeClass: 'bg-blue-100 text-blue-800' })),
-                  ].map((inv) => (
+                  {paginatedAging.map((inv, idx) => (
                     <tr key={inv.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-4 text-center text-slate-400 font-medium">
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
                       <td className="py-3 px-4 font-mono font-bold text-blue-700">
                         {inv.invoiceNumber}
                       </td>
@@ -948,7 +1127,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => onViewInvoice(inv.id)}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
                         >
                           Buka
                         </button>
@@ -958,6 +1137,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(allAgingList.length / itemsPerPage) || 1}
+              totalItems={allAgingList.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="tagihan"
+            />
           </div>
         </div>
       )}
@@ -987,6 +1178,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                   <tr>
+                    <th className="py-3 px-4 w-10 text-center">No</th>
                     <th className="py-3 px-4">No. Bukti</th>
                     <th className="py-3 px-4">Tanggal Masuk</th>
                     <th className="py-3 px-4">Invoice</th>
@@ -996,8 +1188,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredPayments.map((p) => (
+                  {paginatedPayments.map((p, idx) => (
                     <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-4 text-center text-slate-400 font-medium">
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
                       <td className="py-3 px-4 font-mono font-bold text-emerald-700">
                         {p.paymentNumber}
                       </td>
@@ -1013,6 +1208,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(filteredPayments.length / itemsPerPage) || 1}
+              totalItems={filteredPayments.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="transaksi kas"
+            />
           </div>
         </div>
       )}
@@ -1035,10 +1242,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {productPerformance.map((item, idx) => (
+                  {paginatedProducts.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-3.5 px-4 text-center font-bold text-slate-400">
-                        {idx + 1}
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-900">
                         {item.name}
@@ -1054,6 +1261,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(productPerformance.length / itemsPerPage) || 1}
+              totalItems={productPerformance.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPageOptions={[10, 20, 50, 100]}
+              itemLabel="produk/jasa"
+            />
           </div>
         </div>
       )}
@@ -1071,6 +1290,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                 <tr>
+                  <th className="py-3.5 px-4 w-10 text-center">No</th>
                   <th className="py-3.5 px-4 w-36">Waktu Transaksi</th>
                   <th className="py-3.5 px-4">Operator / User</th>
                   <th className="py-3.5 px-4">Aksi</th>
@@ -1079,8 +1299,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {auditLogs.slice(0, 50).map((log) => (
+                {paginatedAuditLogs.map((log, idx) => (
                   <tr key={log.id} className="hover:bg-slate-50">
+                    <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
+                    </td>
                     <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
                       {new Date(log.timestamp).toLocaleString('id-ID')}
                     </td>
@@ -1109,6 +1332,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(auditLogs.length / itemsPerPage) || 1}
+            totalItems={auditLogs.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+            itemsPerPageOptions={[10, 20, 50, 100]}
+            itemLabel="log audit"
+          />
         </div>
       )}
 

@@ -35,6 +35,7 @@ import {
   formatRupiah,
   formatIndonesianDate,
   formatShortDate,
+  resolveItemCostPrice,
 } from '../../services/calculation';
 import { initialCompany } from '../../services/initialData';
 import { MizaLogoIcon } from '../common/MizaBrandLogo';
@@ -117,6 +118,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
 
   // Financial recap calculation
   let totalDpp = 0;
+  let totalDppPaid = 0;
   let totalPpn = 0;
   let totalGrandTotal = 0;
   let totalHpp = 0;
@@ -127,35 +129,48 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
     const dpp = inv.taxableBase || inv.subtotal;
     const ppn = inv.isPpnActive ? inv.ppnAmount : 0;
     const grand = inv.grandTotal;
-    const hpp =
-      inv.totalHpp !== undefined && inv.totalHpp > 0
-        ? inv.totalHpp
-        : inv.items.reduce(
-            (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
-            0
-          );
-    const grossProfit = dpp - hpp;
-    const marginPct = dpp > 0 ? (grossProfit / dpp) * 100 : 0;
+    const isPaid =
+      inv.status === 'paid' ||
+      (inv.grandTotal > 0 && inv.amountPaid >= inv.grandTotal) ||
+      (inv.remainingBalance <= 0 && inv.amountPaid > 0);
+
+    const itemHpp = (inv.items || []).reduce(
+      (sum, item) =>
+        sum + (Number(item.quantity) || 0) * resolveItemCostPrice(item, products, services),
+      0
+    );
+
+    // HPP & Laba Rugi hanya dihitung jika faktur berstatus Lunas
+    const hpp = isPaid ? itemHpp : 0;
+    const grossProfit = isPaid ? dpp - itemHpp : 0;
+    const marginPct = isPaid && dpp > 0 ? (grossProfit / dpp) * 100 : 0;
 
     totalDpp += dpp;
     totalPpn += ppn;
     totalGrandTotal += grand;
-    totalHpp += hpp;
     totalPaid += inv.amountPaid;
     totalUnpaid += inv.remainingBalance;
+
+    // HPP diakumulasikan khusus dari transaksi yang terjual lunas
+    if (isPaid) {
+      totalDppPaid += dpp;
+      totalHpp += itemHpp;
+    }
 
     return {
       ...inv,
       dpp,
       ppn,
       hpp,
+      itemHpp,
       grossProfit,
       marginPct,
+      isPaid,
     };
   });
 
-  const netProfit = totalDpp - totalHpp;
-  const overallMarginPct = totalDpp > 0 ? (netProfit / totalDpp) * 100 : 0;
+  const netProfit = totalDppPaid - totalHpp;
+  const overallMarginPct = totalDppPaid > 0 ? (netProfit / totalDppPaid) * 100 : 0;
 
   // Aging calculation
   const today = new Date();
@@ -474,7 +489,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                   </span>
                 </div>
                 <div className="p-2.5 bg-amber-50/50 border border-amber-200 rounded-xl">
-                  <span className="text-[9px] font-bold text-amber-800 uppercase block">Biaya Modal (HPP)</span>
+                  <span className="text-[9px] font-bold text-amber-800 uppercase block">Biaya Modal (HPP Lunas)</span>
                   <span className="text-xs sm:text-sm font-black text-amber-900 font-mono block mt-0.5">
                     {formatRupiah(totalHpp)}
                   </span>
@@ -604,6 +619,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                       <th className="py-2 px-2 text-center w-8 border-r border-slate-200">No</th>
                       <th className="py-2 px-2 border-r border-slate-200">No. Invoice & Tanggal</th>
                       <th className="py-2 px-2 border-r border-slate-200">Pelanggan</th>
+                      <th className="py-2 px-2 text-center border-r border-slate-200">Status</th>
                       <th className="py-2 px-2 text-right border-r border-slate-200">Omzet DPP</th>
                       <th className="py-2 px-2 text-right border-r border-slate-200">Modal (HPP)</th>
                       <th className="py-2 px-2 text-right border-r border-slate-200">Laba Kotor</th>
@@ -615,7 +631,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                   <tbody className="divide-y divide-slate-200">
                     {invoiceRecaps.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-slate-400 italic">
+                        <td colSpan={10} className="py-8 text-center text-slate-400 italic">
                           Tidak ada data transaksi pada filter periode ini.
                         </td>
                       </tr>
@@ -630,17 +646,48 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                           <td className="py-1.5 px-2 font-medium text-slate-900 border-r border-slate-200">
                             {inv.customerSnapshot?.companyName || inv.customerSnapshot?.name}
                           </td>
+                          <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              inv.isPaid
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : inv.status === 'partial'
+                                ? 'bg-amber-100 text-amber-800'
+                                : inv.status === 'overdue'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {inv.isPaid ? 'LUNAS' : (inv.status || 'BELUM').toUpperCase()}
+                            </span>
+                          </td>
                           <td className="py-1.5 px-2 text-right font-mono text-slate-800 border-r border-slate-200">
                             {formatRupiah(inv.dpp)}
                           </td>
                           <td className="py-1.5 px-2 text-right font-mono text-amber-900 border-r border-slate-200">
-                            {formatRupiah(inv.hpp)}
+                            {inv.isPaid ? (
+                              <>
+                                <span>{formatRupiah(inv.hpp)}</span>
+                                <span className="block text-[7.5px] text-emerald-700 font-sans font-semibold">(Lunas)</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-slate-400">Rp 0</span>
+                                <span className="block text-[7.5px] text-slate-400 font-sans">(Belum Lunas)</span>
+                              </>
+                            )}
                           </td>
-                          <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-800 border-r border-slate-200">
-                            {formatRupiah(inv.grossProfit)}
+                          <td className="py-1.5 px-2 text-right font-mono font-bold border-r border-slate-200">
+                            {inv.isPaid ? (
+                              <span className="text-emerald-800">{formatRupiah(inv.grossProfit)}</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">Rp 0</span>
+                            )}
                           </td>
-                          <td className="py-1.5 px-2 text-center font-bold text-slate-700 border-r border-slate-200">
-                            {inv.marginPct.toFixed(1)}%
+                          <td className="py-1.5 px-2 text-center font-bold border-r border-slate-200">
+                            {inv.isPaid ? (
+                              <span className="text-slate-800">{inv.marginPct.toFixed(1)}%</span>
+                            ) : (
+                              <span className="text-slate-400 font-normal">-</span>
+                            )}
                           </td>
                           <td className="py-1.5 px-2 text-right font-mono text-slate-700 border-r border-slate-200">
                             {formatRupiah(inv.ppn)}
@@ -655,13 +702,13 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
                   {invoiceRecaps.length > 0 && (
                     <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-400">
                       <tr>
-                        <td colSpan={3} className="py-2 px-2 text-right text-slate-900 border-r border-slate-200">
-                          TOTAL KESELURUHAN:
+                        <td colSpan={4} className="py-2 px-2 text-right text-slate-900 border-r border-slate-200">
+                          TOTAL REALISASI (FAKTUR LUNAS):
                         </td>
-                        <td className="py-2 px-2 text-right font-mono text-slate-900 border-r border-slate-200">
-                          {formatRupiah(totalDpp)}
+                        <td className="py-2 px-2 text-right font-mono text-slate-900 border-r border-slate-200" title={`DPP Lunas: ${formatRupiah(totalDppPaid)} (Total Terbit: ${formatRupiah(totalDpp)})`}>
+                          {formatRupiah(totalDppPaid)}
                         </td>
-                        <td className="py-2 px-2 text-right font-mono text-amber-950 border-r border-slate-200">
+                        <td className="py-2 px-2 text-right font-mono text-amber-950 border-r border-slate-200" title="Akumulasi HPP dari transaksi yang sudah lunas">
                           {formatRupiah(totalHpp)}
                         </td>
                         <td className="py-2 px-2 text-right font-mono text-emerald-900 font-black border-r border-slate-200">

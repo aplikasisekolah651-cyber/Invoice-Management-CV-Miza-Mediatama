@@ -197,8 +197,13 @@ export default function App() {
     setCurrentView('invoice_edit');
   };
 
-  const handleViewInvoiceDetail = (invoiceId: string) => {
-    const inv = invoices.find((i) => i.id === invoiceId);
+  const handleViewInvoiceDetail = (invoiceOrId: Invoice | string) => {
+    let inv: Invoice | undefined;
+    if (typeof invoiceOrId === 'string') {
+      inv = invoices.find((i) => i.id === invoiceOrId || i.invoiceNumber === invoiceOrId);
+    } else if (invoiceOrId && typeof invoiceOrId === 'object') {
+      inv = invoices.find((i) => i.id === invoiceOrId.id) || invoiceOrId;
+    }
     if (inv) {
       setSelectedInvoice(inv);
       setCurrentView('invoice_detail');

@@ -2,7 +2,12 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Customer, Product, Invoice, Payment, SalesPerson } from '../types';
-import { formatRupiah, formatShortDate, formatIndonesianDate } from './calculation';
+import {
+  formatRupiah,
+  formatShortDate,
+  formatIndonesianDate,
+  resolveItemCostPrice,
+} from './calculation';
 
 export const ExportService = {
   // --- EXCEL EXPORTS ---
@@ -90,7 +95,7 @@ export const ExportService = {
           ? inv.hpp
           : (inv.items || []).reduce((acc: number, it: any) => {
               const q = Number(it.quantity) || 0;
-              const c = Number(it.costPrice) || 0;
+              const c = resolveItemCostPrice(it);
               return acc + q * c;
             }, 0);
       const omzetNeto =
@@ -103,23 +108,30 @@ export const ExportService = {
           ? `${((labaKotor / omzetNeto) * 100).toFixed(1)}%`
           : '0%';
 
+      const isPaid =
+        inv.status === 'paid' ||
+        inv.isPaid ||
+        (inv.grandTotal > 0 && inv.amountPaid >= inv.grandTotal) ||
+        (inv.remainingBalance <= 0 && inv.amountPaid > 0);
+
       return {
         No: idx + 1,
         'No. Invoice': inv.invoiceNumber,
         Tanggal: formatShortDate(inv.invoiceDate),
         Pelanggan: inv.customerSnapshot?.companyName || inv.customerSnapshot?.name || '-',
         'Sales / PIC': inv.salesSnapshot?.name || '-',
+        'Status Pembayaran': isPaid ? 'LUNAS' : (inv.status || 'BELUM').toUpperCase(),
         'Omzet Bruto': inv.subtotal,
         Diskon: inv.invoiceDiscountAmount,
         'Omzet Neto (DPP)': omzetNeto,
         'Total HPP / Modal': invHpp,
+        'HPP Diakui (Lunas)': isPaid ? invHpp : 0,
         'Laba Kotor': labaKotor,
         'Margin Laba': marginPct,
         'PPN Terkumpul': inv.isPpnActive ? inv.ppnAmount : 0,
         'Grand Total Tagihan': inv.grandTotal,
         'Kas Diterima': inv.amountPaid,
         'Sisa Piutang': inv.remainingBalance,
-        Status: (inv.status || '').toUpperCase(),
       };
     });
 

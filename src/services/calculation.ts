@@ -1,4 +1,4 @@
-import { Invoice, InvoiceItem, InvoiceStatus } from '../types';
+import { Invoice, InvoiceItem, InvoiceStatus, Product, ServiceItem } from '../types';
 
 /**
  * Format numbers to Indonesian Rupiah representation: Rp 1.250.000
@@ -299,9 +299,77 @@ export function numberToTerbilang(num: number): string {
 }
 
 /**
- * Calculate HPP and Profit for a single Invoice Line Item
+ * Resolve costPrice (HPP) for an item.
+ * Prioritizes the historical costPrice recorded on the invoice item (Snapshot Historis).
+ * This ensures that profit/loss for paid invoices does not change when master catalog HPP is updated.
+ * If the item has no recorded costPrice or 0, it falls back to master products or services.
  */
-export function calculateItemHppAndProfit(item: Partial<InvoiceItem>): {
+export function resolveItemCostPrice(
+  item: Partial<InvoiceItem>,
+  products?: Product[],
+  services?: ServiceItem[]
+): number {
+  // 1. Prioritaskan costPrice yang tersimpan/terkunci pada item faktur (Snapshot Historis saat transaksi dibuat)
+  const recordedCost = Number(item.costPrice ?? (item as any).purchasePrice);
+  if (!isNaN(recordedCost) && recordedCost > 0) {
+    return recordedCost;
+  }
+
+  let activeProducts = products;
+  let activeServices = services;
+
+  if ((!activeProducts || activeProducts.length === 0) || (!activeServices || activeServices.length === 0)) {
+    if (typeof window !== 'undefined') {
+      try {
+        const rawP = localStorage.getItem('miza_products_v1');
+        const rawS = localStorage.getItem('miza_services_v1');
+        if (!activeProducts || activeProducts.length === 0) activeProducts = rawP ? JSON.parse(rawP) : [];
+        if (!activeServices || activeServices.length === 0) activeServices = rawS ? JSON.parse(rawS) : [];
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 2. Fallback: jika item faktur belum memiliki costPrice / 0, cari dari Master Produk
+  if (activeProducts && activeProducts.length > 0) {
+    const prod = activeProducts.find(
+      (p) =>
+        (item.itemId && p.id === item.itemId) ||
+        (item.code && p.code && p.code.toLowerCase() === item.code.toLowerCase()) ||
+        (item.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
+    if (prod) {
+      const prodCost = Number(prod.costPrice ?? prod.purchasePrice ?? 0);
+      if (prodCost > 0) return prodCost;
+    }
+  }
+
+  // 3. Fallback: jika item jasa, cari dari Master Jasa
+  if (activeServices && activeServices.length > 0) {
+    const srv = activeServices.find(
+      (s) =>
+        (item.itemId && s.id === item.itemId) ||
+        (item.code && s.code && s.code.toLowerCase() === item.code.toLowerCase()) ||
+        (item.name && s.name && s.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
+    if (srv) {
+      const srvCost = Number(srv.costPrice ?? 0);
+      if (srvCost > 0) return srvCost;
+    }
+  }
+
+  return !isNaN(recordedCost) && recordedCost >= 0 ? recordedCost : 0;
+}
+
+/**
+ * Calculate HPP and Profit for a single Invoice Line Item (with optional master catalog fallback)
+ */
+export function calculateItemHppAndProfit(
+  item: Partial<InvoiceItem>,
+  products?: Product[],
+  services?: ServiceItem[]
+): {
   costPrice: number;
   totalCost: number;
   sellingTotal: number;
@@ -309,7 +377,7 @@ export function calculateItemHppAndProfit(item: Partial<InvoiceItem>): {
   marginPercent: number;
 } {
   const qty = Number(item.quantity) || 0;
-  const costPrice = Number(item.costPrice) || 0;
+  const costPrice = resolveItemCostPrice(item, products, services);
   const totalCost = qty * costPrice;
   const sellingTotal = Number(item.totalPrice) || 0;
   const grossProfit = sellingTotal - totalCost;
@@ -325,9 +393,13 @@ export function calculateItemHppAndProfit(item: Partial<InvoiceItem>): {
 }
 
 /**
- * Calculate total HPP and Profit for an entire Invoice
+ * Calculate total HPP and Profit for an entire Invoice (recalculating automatically even if HPP was entered after transaction creation)
  */
-export function calculateInvoiceProfitAndHpp(invoice: Partial<Invoice>): {
+export function calculateInvoiceProfitAndHpp(
+  invoice: Partial<Invoice>,
+  products?: Product[],
+  services?: ServiceItem[]
+): {
   totalHpp: number;
   taxableBase: number;
   grossProfit: number;
@@ -338,7 +410,7 @@ export function calculateInvoiceProfitAndHpp(invoice: Partial<Invoice>): {
   const items = invoice.items || [];
   const totalHpp = items.reduce((acc, item) => {
     const qty = Number(item.quantity) || 0;
-    const cost = Number(item.costPrice) || 0;
+    const cost = resolveItemCostPrice(item, products, services);
     return acc + qty * cost;
   }, 0);
 
@@ -361,13 +433,18 @@ export function calculateInvoiceProfitAndHpp(invoice: Partial<Invoice>): {
 /**
  * Comprehensive company financial recap (Omzet, HPP, Laba Kotor, PPN, Kas, Piutang)
  */
-export function calculateCompanyFinancialRecap(invoices: Invoice[]): {
+export function calculateCompanyFinancialRecap(
+  invoices: Invoice[],
+  products?: Product[],
+  services?: ServiceItem[]
+): {
   validCount: number;
   totalOmzetBruto: number;
   totalDiskon: number;
   totalOmzetNeto: number; // DPP
-  totalHpp: number; // Modal
-  totalLabaKotor: number; // Omzet Neto - HPP
+  totalOmzetNetoLunas: number; // DPP dari faktur yang lunas
+  totalHpp: number; // Modal HPP Lunas
+  totalLabaKotor: number; // Omzet Neto Lunas - HPP Lunas
   grossMarginPct: number;
   totalPpn: number; // PPN Terkumpul
   totalMaterai: number;
@@ -380,6 +457,7 @@ export function calculateCompanyFinancialRecap(invoices: Invoice[]): {
   let totalOmzetBruto = 0;
   let totalDiskon = 0;
   let totalOmzetNeto = 0;
+  let totalOmzetNetoLunas = 0;
   let totalHpp = 0;
   let totalPpn = 0;
   let totalMaterai = 0;
@@ -388,32 +466,38 @@ export function calculateCompanyFinancialRecap(invoices: Invoice[]): {
   let totalReceivables = 0;
 
   validInvoices.forEach((inv) => {
+    const dpp = Number(inv.taxableBase) || 0;
     totalOmzetBruto += Number(inv.subtotal) || 0;
     totalDiskon += Number(inv.invoiceDiscountAmount) || 0;
-    totalOmzetNeto += Number(inv.taxableBase) || 0;
+    totalOmzetNeto += dpp;
     totalPpn += inv.isPpnActive ? (Number(inv.ppnAmount) || 0) : 0;
     totalMaterai += Number(inv.materaiAmount) || 0;
     totalGrandTotal += Number(inv.grandTotal) || 0;
     totalPaid += Number(inv.amountPaid) || 0;
     totalReceivables += Number(inv.remainingBalance) || 0;
 
-    // HPP sum
+    // HPP & Realisasi Laba sum (only from paid in full / lunas invoices)
+    const isPaid = inv.status === 'paid' || (inv.grandTotal > 0 && inv.amountPaid >= inv.grandTotal) || (inv.remainingBalance <= 0 && inv.amountPaid > 0);
     const invHpp = (inv.items || []).reduce((acc, it) => {
       const q = Number(it.quantity) || 0;
-      const c = Number(it.costPrice) || 0;
+      const c = resolveItemCostPrice(it, products, services);
       return acc + q * c;
     }, 0);
-    totalHpp += invHpp;
+    if (isPaid) {
+      totalOmzetNetoLunas += dpp;
+      totalHpp += invHpp;
+    }
   });
 
-  const totalLabaKotor = totalOmzetNeto - totalHpp;
-  const grossMarginPct = totalOmzetNeto > 0 ? (totalLabaKotor / totalOmzetNeto) * 100 : 0;
+  const totalLabaKotor = totalOmzetNetoLunas - totalHpp;
+  const grossMarginPct = totalOmzetNetoLunas > 0 ? (totalLabaKotor / totalOmzetNetoLunas) * 100 : 0;
 
   return {
     validCount: validInvoices.length,
     totalOmzetBruto,
     totalDiskon,
     totalOmzetNeto,
+    totalOmzetNetoLunas,
     totalHpp,
     totalLabaKotor,
     grossMarginPct: Number(grossMarginPct.toFixed(1)),

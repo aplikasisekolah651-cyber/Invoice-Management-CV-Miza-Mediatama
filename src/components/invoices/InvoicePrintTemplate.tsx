@@ -173,9 +173,9 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
             <div className="text-[11.5px] sm:text-[12.5px] font-black text-slate-900 leading-tight mt-0.5 truncate">
               {invoice.customerSnapshot?.companyName || invoice.customerSnapshot?.name}
             </div>
-            {invoice.customerSnapshot?.companyName && invoice.customerSnapshot?.name && (
+            {(invoice.customerSnapshot?.name || invoice.customerSnapshot?.contactPerson) && (
               <div className="text-slate-700 font-semibold text-[9.5px] sm:text-[10px] leading-tight truncate">
-                Attn: {invoice.customerSnapshot?.name}
+                Attn : {invoice.customerSnapshot?.name || invoice.customerSnapshot?.contactPerson}
               </div>
             )}
             {invoice.customerSnapshot?.address && (
@@ -360,7 +360,7 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
         </div>
       </div>
 
-      {/* 4. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & MARKETING) */}
+      {/* 4. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & HORMAT KAMI) */}
       <div className="mt-2.5 pt-1.5 border-t border-slate-200 text-center text-[10px]">
         <div className="flex justify-between items-start px-4 sm:px-10">
           {/* 1. Signatory: Customer / Penerima */}
@@ -378,10 +378,10 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
             </div>
           </div>
 
-          {/* 2. Signatory: MARKETING (Filled with Sales name) */}
+          {/* 2. Signatory: HORMAT KAMI (Filled with Sales / Company sender name) */}
           <div className="w-36 sm:w-48 flex flex-col items-center">
             <div className="text-slate-800 font-bold text-[10px] sm:text-[10.5px] uppercase tracking-wide">
-              MARKETING,
+              HORMAT KAMI,
             </div>
             <div className="h-10 sm:h-12 flex items-center justify-center relative w-full">
               {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
