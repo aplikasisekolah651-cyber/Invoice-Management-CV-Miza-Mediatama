@@ -13,7 +13,7 @@ import {
   Shield,
   Building,
 } from 'lucide-react';
-import { RoleType, CompanySetting } from '../../types';
+import { RoleType, CompanySetting, User } from '../../types';
 import { initialCompany } from '../../services/initialData';
 import { MizaLogoIcon } from '../common/MizaBrandLogo';
 
@@ -36,7 +36,8 @@ export type NavView =
 interface SidebarProps {
   currentView: string;
   onNavigate?: (view: string) => void;
-  userRole: RoleType;
+  userRole?: RoleType;
+  currentUser?: User;
   company?: CompanySetting;
   isOpen?: boolean;
   isMobileOpen?: boolean;
@@ -47,7 +48,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
-  userRole,
+  userRole = 'admin',
+  currentUser,
   company = initialCompany,
   isOpen,
   isMobileOpen,
@@ -56,23 +58,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const activeCompany = company || initialCompany;
   const isSidebarOpen = isOpen ?? isMobileOpen ?? false;
-  
+  const effectiveRole = currentUser?.role || userRole;
+  const perms = currentUser?.permissions;
+
   const handleClose = () => {
     if (onClose) onClose();
     if (onCloseMobile) onCloseMobile();
   };
 
-  const isAdmin = userRole === 'admin';
-  const isOperator = userRole === 'operator';
+  const isAdmin = effectiveRole === 'admin';
+  const canCreate = perms ? perms.canCreateInvoice : (effectiveRole !== 'manager');
+  const canViewReports = perms ? perms.canViewReports : (effectiveRole !== 'operator');
 
-  // 6 Primary, Focused Menus
-  const navItems = [
+  // Primary Menus with RBAC considerations
+  const allNavItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
       desc: 'Ringkasan & status',
       activeMatch: ['dashboard'],
+      visible: true,
     },
     {
       id: 'invoices',
@@ -81,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       desc: 'Kelola & buat tagihan',
       badge: 'Utama',
       activeMatch: ['invoices', 'invoice_create', 'invoice_edit', 'invoice_detail', 'invoice_print'],
+      visible: true,
     },
     {
       id: 'payments',
@@ -88,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: CreditCard,
       desc: 'Kas masuk & kwitansi',
       activeMatch: ['payments'],
+      visible: true,
     },
     {
       id: 'customers',
@@ -95,6 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Users,
       desc: 'Data kontak & piutang',
       activeMatch: ['customers'],
+      visible: true,
     },
     {
       id: 'catalog',
@@ -102,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: PackageCheck,
       desc: 'Barang, jasa, & satuan',
       activeMatch: ['catalog', 'products', 'services', 'masters'],
+      visible: true,
     },
     {
       id: 'reports',
@@ -109,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: BarChart3,
       desc: 'Omset & umur piutang',
       activeMatch: ['reports'],
+      visible: canViewReports || isAdmin,
     },
     {
       id: 'settings',
@@ -116,8 +127,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Settings,
       desc: 'Profil, logo, & sistem',
       activeMatch: ['settings'],
+      visible: true,
     },
   ];
+
+  const navItems = allNavItems.filter((item) => item.visible);
 
   return (
     <>
@@ -175,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Primary Action Button */}
-        {(isAdmin || isOperator) && (
+        {canCreate && (
           <div className="p-3.5 pb-2">
             <button
               onClick={() => {

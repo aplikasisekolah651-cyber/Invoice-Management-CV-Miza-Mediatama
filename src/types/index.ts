@@ -105,6 +105,8 @@ export interface CompanySetting {
   name: string;
   tagline?: string;
   logoUrl?: string;
+  directorName?: string; // Nama Direktur / Pimpinan yang menandatangani di setiap laporan
+  directorTitle?: string; // Jabatan resmi (e.g., Direktur, Pimpinan CV, Direktur Utama)
   address: string;
   rtRw: string;
   village: string; // Desa/Kelurahan

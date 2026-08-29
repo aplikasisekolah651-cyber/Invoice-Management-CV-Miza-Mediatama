@@ -521,7 +521,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
               {/* Signatory 3: Director / Finance with Materai slot if active */}
               <div>
                 <div className="text-slate-600 font-medium">
-                  Mengetahui ({activeCompany.name}),
+                  Mengetahui ({activeCompany.name || 'CV'}),
                 </div>
                 <div className="h-16 flex items-center justify-center relative">
                   {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
@@ -532,7 +532,10 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                   <div className="border-b border-slate-400 w-36 absolute bottom-0" />
                 </div>
                 <div className="font-bold text-slate-900 mt-1 truncate px-2">
-                  ( {invoice.signatoryFinanceName || 'Ahmad Miza, S.T.'} )
+                  ( {invoice.signatoryFinanceName || activeCompany.directorName || 'Ahmad Miza, S.T.'} )
+                </div>
+                <div className="text-[9px] text-slate-500 font-semibold uppercase mt-0.5">
+                  {activeCompany.directorTitle || 'Pimpinan / Direktur'}
                 </div>
               </div>
             </div>

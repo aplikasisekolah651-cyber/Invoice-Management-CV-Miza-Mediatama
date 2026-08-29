@@ -881,6 +881,8 @@ export default function App() {
               salesList={salesList}
               auditLogs={auditLogs}
               userRole={currentUser.role}
+              currentUser={currentUser}
+              company={company}
               initialTab={currentView}
               onViewInvoice={handleViewInvoiceDetail}
             />

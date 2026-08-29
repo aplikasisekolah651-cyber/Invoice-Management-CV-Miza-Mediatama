@@ -28,12 +28,13 @@
   button {
     display: none !important;
   }
-  #invoice-document {
+  #invoice-document,
+  #report-print-document {
     border: none !important;
     box-shadow: none !important;
     margin: 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
-    padding: 12mm 12mm !important;
+    padding: 8mm 8mm !important;
   }
 }

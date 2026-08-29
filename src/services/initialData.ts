@@ -19,6 +19,8 @@ export const initialCompany: CompanySetting = {
   name: 'CV. MIZA MEDIATAMA',
   tagline: 'KOMPUTER – ELEKTRONIK – FURNITUR – PERDAGANGAN UMUM',
   logoUrl: '', // Can be uploaded dynamically
+  directorName: 'Ahmad Miza, S.T.',
+  directorTitle: 'Direktur',
   address: 'Senggotan No 241B RT 09',
   rtRw: 'RT 09',
   village: 'Tirtonirmolo',

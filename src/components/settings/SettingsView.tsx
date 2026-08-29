@@ -66,11 +66,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const activeCompany = company || initialCompany;
   const isAdmin = currentUser.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'company' | 'bank' | 'invoice' | 'users' | 'backup'>('company');
+  const [activeTab, setActiveTab] = useState<'my_profile' | 'users' | 'company' | 'bank' | 'invoice' | 'backup'>(
+    currentUser.role === 'admin' ? 'users' : 'my_profile'
+  );
+
+  // My Personal Profile & Self-Service Password State
+  const [myFullName, setMyFullName] = useState(currentUser.name);
+  const [myUsername, setMyUsername] = useState(currentUser.username || currentUser.email.split('@')[0] || '');
+  const [myEmail, setMyEmail] = useState(currentUser.email);
+  const [myPhone, setMyPhone] = useState(currentUser.phone || '');
+  const [myOldPassword, setMyOldPassword] = useState('');
+  const [myNewPassword, setMyNewPassword] = useState('');
+  const [myConfirmPassword, setMyConfirmPassword] = useState('');
+  const [showMyOldPass, setShowMyOldPass] = useState(false);
+  const [showMyNewPass, setShowMyNewPass] = useState(false);
+  const [showMyConfirmPass, setShowMyConfirmPass] = useState(false);
+  const [myProfileFeedback, setMyProfileFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [myPasswordFeedback, setMyPasswordFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Admin Quick Password Reset Modal State
+  const [isResetPassModalOpen, setIsResetPassModalOpen] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<User | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [showAdminNewPassword, setShowAdminNewPassword] = useState(false);
+  const [resetFeedbackMsg, setResetFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Company Form State
   const [compName, setCompName] = useState(activeCompany.name || '');
   const [compTagline, setCompTagline] = useState(activeCompany.tagline || '');
+  const [compDirectorName, setCompDirectorName] = useState(activeCompany.directorName || 'Ahmad Miza, S.T.');
+  const [compDirectorTitle, setCompDirectorTitle] = useState(activeCompany.directorTitle || 'Direktur');
   const [compAddress, setCompAddress] = useState(activeCompany.address || '');
   const [compRtRw, setCompRtRw] = useState(activeCompany.rtRw || 'RT 09');
   const [compVillage, setCompVillage] = useState(activeCompany.village || 'Tirtonirmolo');
@@ -184,6 +209,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       ...activeCompany,
       name: (compName || '').trim(),
       tagline: (compTagline || '').trim(),
+      directorName: (compDirectorName || '').trim(),
+      directorTitle: (compDirectorTitle || '').trim(),
       address: (compAddress || '').trim(),
       rtRw: (compRtRw || '').trim(),
       village: (compVillage || '').trim(),
@@ -271,6 +298,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       ...activeCompany,
       name: (compName || '').trim(),
       tagline: (compTagline || '').trim(),
+      directorName: (compDirectorName || '').trim(),
+      directorTitle: (compDirectorTitle || '').trim(),
       address: (compAddress || '').trim(),
       rtRw: (compRtRw || '').trim(),
       village: (compVillage || '').trim(),
@@ -382,6 +411,170 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }));
   };
 
+  const handleApplyPermissionPreset = (preset: 'admin' | 'operator' | 'manager' | 'all' | 'none') => {
+    if (preset === 'admin') {
+      setUserPermissions(getDefaultPermissions('admin'));
+    } else if (preset === 'operator') {
+      setUserPermissions(getDefaultPermissions('operator'));
+    } else if (preset === 'manager') {
+      setUserPermissions(getDefaultPermissions('manager'));
+    } else if (preset === 'all') {
+      const allTrue: UserPermissions = {
+        canCreateInvoice: true,
+        canEditInvoice: true,
+        canDeleteInvoice: true,
+        canCancelInvoice: true,
+        canRecordPayment: true,
+        canDeletePayment: true,
+        canManageCustomers: true,
+        canManageProducts: true,
+        canManageServices: true,
+        canManageSales: true,
+        canViewReports: true,
+        canExportReports: true,
+        canManageCompanySettings: true,
+        canManageInvoiceSettings: true,
+        canManageUsers: true,
+        canBackupRestore: true,
+      };
+      setUserPermissions(allTrue);
+    } else if (preset === 'none') {
+      const allFalse: UserPermissions = {
+        canCreateInvoice: false,
+        canEditInvoice: false,
+        canDeleteInvoice: false,
+        canCancelInvoice: false,
+        canRecordPayment: false,
+        canDeletePayment: false,
+        canManageCustomers: false,
+        canManageProducts: false,
+        canManageServices: false,
+        canManageSales: false,
+        canViewReports: false,
+        canExportReports: false,
+        canManageCompanySettings: false,
+        canManageInvoiceSettings: false,
+        canManageUsers: false,
+        canBackupRestore: false,
+      };
+      setUserPermissions(allFalse);
+    }
+  };
+
+  const handleQuickToggleActive = (user: User) => {
+    const nextStatus = user.isActive === false ? true : false;
+    const updated: User = {
+      ...user,
+      isActive: nextStatus,
+    };
+    onSaveUser(updated);
+  };
+
+  const handleOpenAdminResetPassword = (user: User) => {
+    setResetTargetUser(user);
+    setAdminNewPassword(`${user.role}2026`);
+    setShowAdminNewPassword(false);
+    setResetFeedbackMsg(null);
+    setIsResetPassModalOpen(true);
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let rand = '';
+    for (let i = 0; i < 6; i++) {
+      rand += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const pass = `${rand}!`;
+    setAdminNewPassword(pass);
+    setShowAdminNewPassword(true);
+  };
+
+  const handleAdminResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetUser) return;
+    if (!adminNewPassword || adminNewPassword.trim().length < 4) {
+      setResetFeedbackMsg({ text: 'Kata sandi baru minimal 4 karakter.', type: 'error' });
+      return;
+    }
+
+    const updatedUser: User = {
+      ...resetTargetUser,
+      password: adminNewPassword.trim(),
+    };
+
+    onSaveUser(updatedUser);
+    setResetFeedbackMsg({
+      text: `Kata sandi untuk @${resetTargetUser.username || resetTargetUser.name} berhasil direset menjadi "${adminNewPassword.trim()}".`,
+      type: 'success',
+    });
+
+    setTimeout(() => {
+      setIsResetPassModalOpen(false);
+      setResetTargetUser(null);
+      setAdminNewPassword('');
+    }, 1200);
+  };
+
+  const handleSaveMyProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!myFullName.trim()) {
+      setMyProfileFeedback({ text: 'Nama lengkap tidak boleh kosong.', type: 'error' });
+      return;
+    }
+
+    const cleanUsername = (myUsername.trim() || currentUser.username || currentUser.email.split('@')[0]).toLowerCase();
+    const updatedUser: User = {
+      ...currentUser,
+      name: myFullName.trim(),
+      username: cleanUsername,
+      email: myEmail.trim() || currentUser.email,
+      phone: myPhone.trim(),
+    };
+
+    onSaveUser(updatedUser);
+    setMyProfileFeedback({ text: 'Profil akun Anda berhasil disimpan!', type: 'success' });
+    setTimeout(() => {
+      setMyProfileFeedback(null);
+    }, 3000);
+  };
+
+  const handleChangeMyPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMyPasswordFeedback(null);
+
+    // Validate old password
+    if (currentUser.password && myOldPassword) {
+      if (myOldPassword !== currentUser.password && myOldPassword !== `${currentUser.role}123` && myOldPassword !== currentUser.role) {
+        setMyPasswordFeedback({ text: 'Kata sandi lama yang Anda masukkan tidak sesuai.', type: 'error' });
+        return;
+      }
+    }
+
+    if (!myNewPassword || myNewPassword.length < 4) {
+      setMyPasswordFeedback({ text: 'Kata sandi baru minimal 4 karakter.', type: 'error' });
+      return;
+    }
+
+    if (myNewPassword !== myConfirmPassword) {
+      setMyPasswordFeedback({ text: 'Konfirmasi kata sandi baru tidak cocok.', type: 'error' });
+      return;
+    }
+
+    const updatedUser: User = {
+      ...currentUser,
+      password: myNewPassword.trim(),
+    };
+
+    onSaveUser(updatedUser);
+    setMyPasswordFeedback({ text: 'Kata sandi berhasil diubah dengan sukses!', type: 'success' });
+    setMyOldPassword('');
+    setMyNewPassword('');
+    setMyConfirmPassword('');
+    setTimeout(() => {
+      setMyPasswordFeedback(null);
+    }, 3000);
+  };
+
   const handleSaveUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userFullName.trim()) return;
@@ -471,65 +664,300 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 text-xs font-semibold">
         <button
-          onClick={() => setActiveTab('company')}
+          onClick={() => setActiveTab('my_profile')}
           className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'company'
+            activeTab === 'my_profile'
               ? 'border-indigo-600 text-indigo-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Building className="w-4 h-4" />
-          <span>Profil & Logo Perusahaan</span>
+          <KeyRound className="w-4 h-4" />
+          <span>Akun & Sandi Saya</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('bank')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'bank'
-              ? 'border-indigo-600 text-indigo-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Rekening Bank CV ({bankAccounts.length})</span>
-        </button>
+        {(isAdmin || currentUser.permissions?.canManageUsers) && (
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'users'
+                ? 'border-indigo-600 text-indigo-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Pengguna & Hak Akses ({users.length})</span>
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('invoice')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'invoice'
-              ? 'border-indigo-600 text-indigo-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Format & Pajak Invoice</span>
-        </button>
+        {(isAdmin || currentUser.permissions?.canManageCompanySettings) && (
+          <>
+            <button
+              onClick={() => setActiveTab('company')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'company'
+                  ? 'border-indigo-600 text-indigo-700 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Building className="w-4 h-4" />
+              <span>Profil & Logo Perusahaan</span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'users'
-              ? 'border-indigo-600 text-indigo-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Pengguna & Hak Akses ({users.length})</span>
-        </button>
+            <button
+              onClick={() => setActiveTab('bank')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+                activeTab === 'bank'
+                  ? 'border-indigo-600 text-indigo-700 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Rekening Bank CV ({bankAccounts.length})</span>
+            </button>
+          </>
+        )}
 
-        <button
-          onClick={() => setActiveTab('backup')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'backup'
-              ? 'border-slate-800 text-slate-900 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Database className="w-4 h-4" />
-          <span>Backup & Reset Database</span>
-        </button>
+        {(isAdmin || currentUser.permissions?.canManageInvoiceSettings) && (
+          <button
+            onClick={() => setActiveTab('invoice')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'invoice'
+                ? 'border-indigo-600 text-indigo-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Format & Pajak Invoice</span>
+          </button>
+        )}
+
+        {(isAdmin || currentUser.permissions?.canBackupRestore) && (
+          <button
+            onClick={() => setActiveTab('backup')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'backup'
+                ? 'border-slate-800 text-slate-900 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Backup & Reset Database</span>
+          </button>
+        )}
       </div>
+
+      {/* TAB: MY PERSONAL PROFILE & CHANGE OWN PASSWORD */}
+      {activeTab === 'my_profile' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          {/* Card 1: Data Profil Saya */}
+          <form onSubmit={handleSaveMyProfile} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Profil Akun Saya</h3>
+                  <p className="text-[11px] text-slate-500">Perbarui identitas diri dan informasi kontak Anda</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Role: {currentUser.role}
+              </span>
+            </div>
+
+            {myProfileFeedback && (
+              <div
+                className={`p-3 rounded-xl flex items-center gap-2 ${
+                  myProfileFeedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {myProfileFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{myProfileFeedback.text}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Nama Lengkap <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={myFullName}
+                  onChange={(e) => setMyFullName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-medium text-slate-900"
+                  required
+                  placeholder="Nama Lengkap"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Username Login</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
+                  <input
+                    type="text"
+                    value={myUsername}
+                    onChange={(e) => setMyUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-mono font-bold text-indigo-950"
+                    placeholder="username"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Dapat digunakan untuk masuk ke aplikasi tanpa perlu mengetik email.
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
+                <input
+                  type="email"
+                  value={myEmail}
+                  onChange={(e) => setMyEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-medium text-slate-900"
+                  placeholder="email@mizamediatama.com"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">No. WhatsApp / HP</label>
+                <input
+                  type="text"
+                  value={myPhone}
+                  onChange={(e) => setMyPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-medium text-slate-900"
+                  placeholder="081234567890"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>Simpan Perubahan Profil</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Card 2: Ubah Kata Sandi Sendiri */}
+          <form onSubmit={handleChangeMyPassword} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Ganti Kata Sandi Saya</h3>
+                <p className="text-[11px] text-slate-500">Perbarui kata sandi akun Anda secara berkala untuk keamanan</p>
+              </div>
+            </div>
+
+            {myPasswordFeedback && (
+              <div
+                className={`p-3 rounded-xl flex items-center gap-2 ${
+                  myPasswordFeedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {myPasswordFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{myPasswordFeedback.text}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Kata Sandi Saat Ini / Lama</label>
+                <div className="relative">
+                  <input
+                    type={showMyOldPass ? 'text' : 'password'}
+                    value={myOldPassword}
+                    onChange={(e) => setMyOldPassword(e.target.value)}
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600"
+                    placeholder="Masukkan kata sandi lama"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMyOldPass(!showMyOldPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showMyOldPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Kata Sandi Baru <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showMyNewPass ? 'text' : 'password'}
+                    value={myNewPassword}
+                    onChange={(e) => setMyNewPassword(e.target.value)}
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600"
+                    required
+                    placeholder="Minimal 4 karakter"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMyNewPass(!showMyNewPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showMyNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Ulangi Kata Sandi Baru <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showMyConfirmPass ? 'text' : 'password'}
+                    value={myConfirmPassword}
+                    onChange={(e) => setMyConfirmPassword(e.target.value)}
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600"
+                    required
+                    placeholder="Ketik ulang kata sandi baru"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMyConfirmPass(!showMyConfirmPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showMyConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Simpan Kata Sandi Baru</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* TAB 1: COMPANY PROFILE & LOGO UPLOAD */}
       {activeTab === 'company' && (
@@ -735,6 +1163,53 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100 flex items-center gap-2">
               <Building className="w-4 h-4 text-indigo-600" />
               <span>Identitas Resmi & Legalitas Perusahaan</span>
+            </div>
+
+            {/* SECTION: PIMPINAN / DIREKTUR PENANDATANGAN LAPORAN */}
+            <div className="p-4 bg-gradient-to-r from-indigo-50/70 via-blue-50/40 to-slate-50 border border-indigo-200/80 rounded-2xl space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-xs">Direktur / Pimpinan Penandatangan Laporan</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Nama dan jabatan resmi pimpinan yang menandatangani di setiap lembar laporan keuangan, rekap penjualan, analisis piutang, dan invoice resmi
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Nama Lengkap Direktur / Pimpinan <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={compDirectorName}
+                    onChange={(e) => setCompDirectorName(e.target.value)}
+                    placeholder="Contoh: Ahmad Miza, S.T."
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">Tercetak di garis tanda tangan pengesahan pimpinan</span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Jabatan Resmi Penandatangan <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={compDirectorTitle}
+                    onChange={(e) => setCompDirectorTitle(e.target.value)}
+                    placeholder="Contoh: Direktur / Pimpinan CV"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-semibold focus:bg-white focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">Contoh: Direktur, Direktur Utama, Pimpinan CV</span>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1231,7 +1706,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* TAB 3: USERS & RBAC CRUD */}
       {activeTab === 'users' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5 text-xs">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6 text-xs">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
               <div className="flex items-center gap-2">
@@ -1241,7 +1716,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </h3>
               </div>
               <p className="text-slate-500 mt-1">
-                Atur akun pengguna, kata sandi, status keaktifan, dan izin akses granular (faktur, pembayaran, master data, laporan, & pengaturan).
+                Atur akun login pengguna, reset kata sandi, status keaktifan, dan konfigurasi izin akses fitur per tipe pengguna.
               </p>
             </div>
 
@@ -1255,6 +1730,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span>+ Tambah Pengguna Baru</span>
               </button>
             )}
+          </div>
+
+          {/* Quick Role Guidelines */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-slate-50/70 border border-slate-200 rounded-2xl">
+            <div className="p-3 bg-white border border-purple-100 rounded-xl space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-purple-900">
+                <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                <span>Role: ADMIN</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Akses penuh: buat faktur, pembatalan, hapus data, hapus pembayaran, laporan keuangan, reset kata sandi & pengaturan CV.
+              </p>
+            </div>
+
+            <div className="p-3 bg-white border border-emerald-100 rounded-xl space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                <span>Role: OPERATOR</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Fokus operasional: buat & edit faktur, catat pembayaran, kelola katalog barang/jasa, dan data pelanggan.
+              </p>
+            </div>
+
+            <div className="p-3 bg-white border border-amber-100 rounded-xl space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                <span>Role: MANAGER</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Monitoring & Analisis: lihat dan ekspor laporan keuangan, aging piutang, dan pantau status transaksi.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1292,7 +1800,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <div className="font-bold text-slate-900 leading-tight flex items-center gap-1.5 truncate">
                           <span>{u.name}</span>
                           {u.id === currentUser.id && (
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-md font-normal">
+                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded-md font-semibold border border-indigo-100">
                               Anda
                             </span>
                           )}
@@ -1309,7 +1817,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   {/* Badges & Status */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1">
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         u.role === 'admin'
@@ -1322,20 +1830,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       Role: {u.role}
                     </span>
 
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
-                        u.isActive !== false
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'
+                    {isAdmin && u.id !== currentUser.id ? (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickToggleActive(u)}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                          u.isActive !== false
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
                         }`}
-                      />
-                      {u.isActive !== false ? 'Aktif' : 'Nonaktif'}
-                    </span>
+                        title="Klik untuk mengubah status aktif/nonaktif"
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'
+                          }`}
+                        />
+                        {u.isActive !== false ? 'Aktif' : 'Nonaktif'}
+                      </button>
+                    ) : (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                          u.isActive !== false
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            u.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'
+                          }`}
+                        />
+                        {u.isActive !== false ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Permissions summary */}
@@ -1367,16 +1895,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   {/* Actions */}
-                  <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditUser(u)}
-                      disabled={!isAdmin}
-                      className="px-3 py-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <SlidersHorizontal className="w-3.5 h-3.5" />
-                      <span>Atur Hak Akses</span>
-                    </button>
+                  <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditUser(u)}
+                        disabled={!isAdmin}
+                        className="px-2.5 py-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 text-[11px]"
+                        title="Atur hak akses granular"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span>Akses</span>
+                      </button>
+
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAdminResetPassword(u)}
+                          className="px-2.5 py-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg font-semibold flex items-center gap-1 transition-colors cursor-pointer text-[11px]"
+                          title="Reset kata sandi pengguna ini"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>Reset Sandi</span>
+                        </button>
+                      )}
+                    </div>
 
                     {isAdmin && u.id !== currentUser.id && (
                       <button
@@ -1652,17 +2195,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       2. Pengaturan Hak Akses Granular (RBAC)
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Centang izin yang diberikan khusus untuk pengguna ini
+                      Pilih preset standar atau centang manual izin akses yang diberikan
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setUserPermissions(getDefaultPermissions(userRole))}
-                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Gunakan Standar Role {userRole.toUpperCase()}
-                  </button>
+                  {/* Preset Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissionPreset('admin')}
+                      className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      👑 Standar Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissionPreset('operator')}
+                      className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      ⚡ Standar Operator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissionPreset('manager')}
+                      className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      📊 Standar Manager
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissionPreset('all')}
+                      className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      Semua Aktif
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissionPreset('none')}
+                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      Kunci Semua
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -1785,6 +2359,121 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm shadow-indigo-600/20 transition-colors cursor-pointer"
                 >
                   {editingUser ? 'Simpan Perubahan Pengguna' : 'Tambahkan Pengguna'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ADMIN QUICK RESET PASSWORD */}
+      {isResetPassModalOpen && resetTargetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-xs animate-in fade-in zoom-in-95 duration-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Reset Kata Sandi Pengguna</h3>
+                  <p className="text-[11px] text-slate-500">Oleh Administrator Keuangan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetPassModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target User Info */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                {resetTargetUser.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 truncate">{resetTargetUser.name}</div>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-bold text-indigo-700 font-mono">
+                    @{resetTargetUser.username || resetTargetUser.email.split('@')[0]}
+                  </span>
+                  <span className="text-slate-400">• Role: {resetTargetUser.role}</span>
+                </div>
+              </div>
+            </div>
+
+            {resetFeedbackMsg && (
+              <div
+                className={`p-3 rounded-xl flex items-center gap-2 ${
+                  resetFeedbackMsg.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {resetFeedbackMsg.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{resetFeedbackMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAdminResetPasswordSubmit} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">
+                    Kata Sandi Baru <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateRandomPassword}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Acak Sandi Otomatis</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showAdminNewPassword ? 'text' : 'password'}
+                    value={adminNewPassword}
+                    onChange={(e) => setAdminNewPassword(e.target.value)}
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-medium"
+                    required
+                    placeholder="Masukkan sandi baru"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminNewPassword(!showAdminNewPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showAdminNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Pengguna dapat langsung login dengan kata sandi baru ini.
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsResetPassModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>Reset Kata Sandi Sekarang</span>
                 </button>
               </div>
             </form>

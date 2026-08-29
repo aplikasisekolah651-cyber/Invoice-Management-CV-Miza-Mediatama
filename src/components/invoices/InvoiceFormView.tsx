@@ -20,6 +20,10 @@ import {
   Package,
   Wrench,
   Sparkles,
+  X,
+  Tag,
+  Filter,
+  Layers,
 } from 'lucide-react';
 import {
   Invoice,
@@ -127,6 +131,44 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       },
     ];
   });
+
+  // Catalog Picker Modal State
+  const [catalogModalTargetIndex, setCatalogModalTargetIndex] = useState<number | null>(null);
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState<string>('all');
+
+  // Grouped products by category for fast navigation
+  const categorizedProducts = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    products.forEach((p) => {
+      const cat = (p.category && p.category.trim()) || 'Umum / Lainnya';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(p);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [products]);
+
+  const categorizedServices = useMemo(() => {
+    const map = new Map<string, ServiceItem[]>();
+    services.forEach((s) => {
+      const cat = (s.category && s.category.trim()) || 'Jasa & Layanan';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(s);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [services]);
+
+  const allCategoriesList = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) set.add(p.category.trim());
+    });
+    return Array.from(set).sort();
+  }, [products]);
 
   // Invoice level discounts & taxes
   const [invoiceDiscountType, setInvoiceDiscountType] = useState<'percentage' | 'nominal'>(
@@ -369,16 +411,37 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     editInvoice?.amountPaid,
   ]);
 
-  // Internal Profit & Loss and HPP Calculations
-  const internalProfitAnalysis = useMemo(() => {
-    const totalCostHpp = items.reduce(
-      (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0),
-      0
-    );
-    const estGrossProfit = summary.taxableBase - totalCostHpp;
-    const estMarginPercent = summary.taxableBase > 0 ? (estGrossProfit / summary.taxableBase) * 100 : 0;
-    return { totalCostHpp, estGrossProfit, estMarginPercent };
-  }, [items, summary.taxableBase]);
+  // Filtered items for Catalog Browser Modal
+  const modalCatalogProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchCat =
+        catalogCategoryFilter === 'all' ||
+        (p.category && p.category.trim().toLowerCase() === catalogCategoryFilter.toLowerCase());
+      const query = catalogSearchQuery.trim().toLowerCase();
+      const matchQuery =
+        !query ||
+        p.name.toLowerCase().includes(query) ||
+        p.code.toLowerCase().includes(query) ||
+        (p.description && p.description.toLowerCase().includes(query)) ||
+        (p.category && p.category.toLowerCase().includes(query));
+      return matchCat && matchQuery;
+    });
+  }, [products, catalogCategoryFilter, catalogSearchQuery]);
+
+  const modalCatalogServices = useMemo(() => {
+    if (catalogCategoryFilter !== 'all' && !catalogCategoryFilter.toLowerCase().includes('jasa')) {
+      return [];
+    }
+    return services.filter((s) => {
+      const query = catalogSearchQuery.trim().toLowerCase();
+      return (
+        !query ||
+        s.name.toLowerCase().includes(query) ||
+        s.code.toLowerCase().includes(query) ||
+        (s.description && s.description.toLowerCase().includes(query))
+      );
+    });
+  }, [services, catalogCategoryFilter, catalogSearchQuery]);
 
   // Validation
   const validateForm = (): boolean => {
@@ -796,15 +859,12 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-3 px-3 w-10 text-center">#</th>
-                <th className="py-3 px-3 min-w-[240px]">Barang / Jasa & Deskripsi Spesifikasi</th>
-                <th className="py-3 px-2 w-16 text-center">Qty</th>
-                <th className="py-3 px-2 w-20 text-center">Satuan</th>
-                <th className="py-3 px-3 w-32 text-right bg-amber-50/50 text-amber-900">
-                  <span className="flex items-center justify-end gap-1 font-bold">
-                    <span>HPP / Modal</span>
-                  </span>
+                <th className="py-3 px-3 min-w-[280px]">Barang / Jasa & Deskripsi Spesifikasi</th>
+                <th className="py-3 px-2 w-20 text-center">Qty</th>
+                <th className="py-3 px-3 w-36 text-right">
+                  <span>Harga Jual</span>
+                  <span className="block text-[10px] font-normal text-slate-400">Otomatis Master</span>
                 </th>
-                <th className="py-3 px-3 w-32 text-right">Harga Jual</th>
                 <th className="py-3 px-2 w-28 text-right">Diskon</th>
                 <th className="py-3 px-3 w-36 text-right">Total Jual</th>
                 <th className="py-3 px-2 w-10 text-center">Aksi</th>
@@ -812,10 +872,6 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((item, idx) => {
-                const lineHpp = (Number(item.quantity) || 0) * (Number(item.costPrice) || 0);
-                const lineProfit = (Number(item.totalPrice) || 0) - lineHpp;
-                const lineMargin = (item.totalPrice || 0) > 0 ? (lineProfit / item.totalPrice) * 100 : 0;
-
                 return (
                   <tr key={item.id} className="align-top hover:bg-slate-50/50">
                     <td className="py-3 px-3 text-center text-slate-400 font-semibold pt-4">
@@ -824,8 +880,8 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
 
                     {/* Item Selection & Description */}
                     <td className="py-3 px-3 space-y-2">
-                      {/* Catalog Quick Selector */}
-                      <div className="flex flex-wrap items-center gap-2">
+                      {/* Catalog Quick Selector & Modal Trigger */}
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <select
                           onChange={(e) => {
                             const val = e.target.value;
@@ -833,25 +889,45 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                             const [type, id] = val.split(':');
                             handleSelectCatalogItem(idx, type as any, id);
                           }}
-                          className="px-2.5 py-1 text-[11px] bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium max-w-full"
+                          className="flex-1 min-w-[200px] px-2.5 py-1.5 text-[11px] bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           defaultValue=""
                         >
                           <option value="">⚡ Pilih Dari Master Data Katalog...</option>
-                          <optgroup label="-- BARANG (PRODUCTS) --">
-                            {products.map((p) => (
-                              <option key={p.id} value={`product:${p.id}`}>
-                                {p.code} - {p.name} (Jual: {formatRupiah(p.sellingPrice)} | Modal: {formatRupiah(p.costPrice || p.purchasePrice || 0)})
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="-- JASA (SERVICES) --">
-                            {services.map((s) => (
-                              <option key={s.id} value={`service:${s.id}`}>
-                                {s.code} - {s.name} (Jual: {formatRupiah(s.price)} | Modal: {formatRupiah(s.costPrice || 0)})
-                              </option>
-                            ))}
-                          </optgroup>
+                          {categorizedProducts.map(([categoryName, prodList]) => (
+                            <optgroup key={categoryName} label={`📦 KATEGORI: ${categoryName.toUpperCase()}`}>
+                              {prodList.map((p) => (
+                                <option key={p.id} value={`product:${p.id}`}>
+                                  {p.code} - {p.name} ({formatRupiah(p.sellingPrice || 0)})
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {categorizedServices.length > 0 && (
+                            categorizedServices.map(([categoryName, srvList]) => (
+                              <optgroup key={categoryName} label={`🛠️ KATEGORI: ${categoryName.toUpperCase()}`}>
+                                {srvList.map((s) => (
+                                  <option key={s.id} value={`service:${s.id}`}>
+                                    {s.code} - {s.name} ({formatRupiah(s.price || 0)})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))
+                          )}
                         </select>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCatalogModalTargetIndex(idx);
+                            setCatalogSearchQuery('');
+                            setCatalogCategoryFilter('all');
+                          }}
+                          className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                          title="Buka katalog barang dengan pencarian dan filter kategori lengkap"
+                        >
+                          <Search className="w-3 h-3" />
+                          <span>Cari Katalog</span>
+                        </button>
                       </div>
 
                       {/* Item Name Input */}
@@ -886,36 +962,7 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                       />
                     </td>
 
-                    {/* Unit */}
-                    <td className="py-3 px-2">
-                      <input
-                        type="text"
-                        value={item.unit}
-                        onChange={(e) => handleItemFieldChange(idx, 'unit', e.target.value)}
-                        placeholder="pcs"
-                        className="w-full text-center px-1.5 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none"
-                      />
-                    </td>
-
-                    {/* Cost Price / HPP */}
-                    <td className="py-3 px-3 bg-amber-50/30">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1000"
-                        value={item.costPrice ?? 0}
-                        onChange={(e) =>
-                          handleItemFieldChange(idx, 'costPrice', Math.max(0, Number(e.target.value)))
-                        }
-                        className="w-full text-right px-2 py-1.5 bg-white border border-amber-200 rounded-xl font-medium text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                        title="Harga Pokok Penjualan / Modal per unit"
-                      />
-                      <div className="text-[10px] text-right text-amber-700/80 mt-0.5 font-mono">
-                        {formatRupiah(item.costPrice || 0)}
-                      </div>
-                    </td>
-
-                    {/* Unit Price (Selling) */}
+                    {/* Unit Price (Selling Price - Otomatis terisi dari master) */}
                     <td className="py-3 px-3">
                       <input
                         type="number"
@@ -966,12 +1013,9 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                       )}
                     </td>
 
-                    {/* Line Total & Profit */}
+                    {/* Line Total */}
                     <td className="py-3 px-3 text-right pt-3.5">
-                      <div className="font-bold text-slate-900">{formatRupiah(item.totalPrice)}</div>
-                      <div className={`text-[10px] font-medium mt-0.5 ${lineProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        Laba: {lineProfit >= 0 ? '+' : ''}{formatRupiah(lineProfit)} ({lineMargin.toFixed(0)}%)
-                      </div>
+                      <div className="font-bold text-slate-900 text-sm">{formatRupiah(item.totalPrice)}</div>
                     </td>
 
                     {/* Delete Item */}
@@ -1334,43 +1378,6 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* 7. Profit & Loss / HPP Analysis Card (Internal Control) */}
-            <div className="p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl space-y-2 text-xs">
-              <div className="flex items-center justify-between pb-1.5 border-b border-emerald-200/60 font-bold text-emerald-900">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span>Analisis Laba Rugi Faktur (Internal)</span>
-                </span>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px]">
-                  Margin {internalProfitAnalysis.estMarginPercent.toFixed(1)}%
-                </span>
-              </div>
-
-              <div className="space-y-1 pt-0.5 text-slate-700">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Omzet Penjualan (DPP):</span>
-                  <span className="font-semibold text-slate-900">{formatRupiah(summary.taxableBase)}</span>
-                </div>
-                <div className="flex justify-between text-amber-800">
-                  <span>Total Biaya Modal (HPP):</span>
-                  <span className="font-semibold font-mono">- {formatRupiah(internalProfitAnalysis.totalCostHpp)}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-emerald-200/60 font-bold text-emerald-900 text-[13px]">
-                  <span>Estimasi Laba Kotor:</span>
-                  <span className="font-mono">
-                    {internalProfitAnalysis.estGrossProfit >= 0 ? '+' : ''}
-                    {formatRupiah(internalProfitAnalysis.estGrossProfit)}
-                  </span>
-                </div>
-                {isPpnActive && (
-                  <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
-                    <span>PPN ({ppnRate}%) Ditagihkan:</span>
-                    <span className="font-medium text-slate-700">{formatRupiah(summary.ppnAmount)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Bottom Floating-style Action Buttons */}
@@ -1403,6 +1410,244 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* CATALOG BROWSER & SEARCH MODAL (GROUPED BY CATEGORY) */}
+      {catalogModalTargetIndex !== null && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 rounded-xl text-blue-400">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    Pilih Item Katalog Master (Dikelompokkan per Kategori)
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Memilih item untuk Baris #{catalogModalTargetIndex + 1} — Harga Jual otomatis terisi dari Master Data
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogModalTargetIndex(null)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Search & Category Filter Pills */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/70 space-y-3">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={catalogSearchQuery}
+                  onChange={(e) => setCatalogSearchQuery(e.target.value)}
+                  placeholder="Cari kode barang, nama item, atau spesifikasi teknis..."
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs font-medium"
+                  autoFocus
+                />
+                {catalogSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setCatalogSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 shrink-0 mr-1">
+                  <Filter className="w-3 h-3" /> Kategori:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCatalogCategoryFilter('all')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    catalogCategoryFilter === 'all'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Semua ({products.length + services.length})
+                </button>
+                {allCategoriesList.map((cat) => {
+                  const count = products.filter((p) => (p.category || '').trim() === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCatalogCategoryFilter(cat)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        catalogCategoryFilter === cat
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      📦 {cat} ({count})
+                    </button>
+                  );
+                })}
+                {services.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCatalogCategoryFilter('Jasa & Layanan')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      catalogCategoryFilter === 'Jasa & Layanan'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    🛠️ Jasa & Layanan ({services.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Catalog Items List */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 divide-y divide-slate-100">
+              {modalCatalogProducts.length === 0 && modalCatalogServices.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 space-y-2">
+                  <Package className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-600">Tidak ada item yang sesuai filter pencarian</p>
+                  <p className="text-xs text-slate-400">Coba ubah kata kunci pencarian atau pilih kategori lain</p>
+                </div>
+              ) : (
+                <>
+                  {modalCatalogProducts.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1">
+                        <Package className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Katalog Barang ({modalCatalogProducts.length} item)</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {modalCatalogProducts.map((prod) => (
+                          <div
+                            key={prod.id}
+                            className="p-3 bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-blue-300 rounded-xl transition-all flex flex-col justify-between group shadow-2xs"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold rounded-md">
+                                  {prod.code}
+                                </span>
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold rounded-md">
+                                  {prod.category || 'Umum'}
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-900 text-xs sm:text-sm group-hover:text-blue-700 transition-colors">
+                                {prod.name}
+                              </div>
+                              {prod.description && (
+                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                  {prod.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between">
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">Harga Jual:</div>
+                                <div className="text-sm font-bold text-blue-600 font-mono">
+                                  {formatRupiah(prod.sellingPrice || 0)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectCatalogItem(catalogModalTargetIndex, 'product', prod.id);
+                                  setCatalogModalTargetIndex(null);
+                                }}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <span>Pilih Item</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {modalCatalogServices.length > 0 && (
+                    <div className="space-y-2 pt-4">
+                      <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 pb-1">
+                        <Wrench className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Katalog Jasa & Layanan ({modalCatalogServices.length} item)</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {modalCatalogServices.map((srv) => (
+                          <div
+                            key={srv.id}
+                            className="p-3 bg-white hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all flex flex-col justify-between group shadow-2xs"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold rounded-md">
+                                  {srv.code}
+                                </span>
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-semibold rounded-md">
+                                  {srv.category || 'Jasa & Layanan'}
+                                </span>
+                              </div>
+                              <div className="font-bold text-slate-900 text-xs sm:text-sm group-hover:text-indigo-700 transition-colors">
+                                {srv.name}
+                              </div>
+                              {srv.description && (
+                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                  {srv.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between">
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">Harga Jual:</div>
+                                <div className="text-sm font-bold text-indigo-600 font-mono">
+                                  {formatRupiah(srv.price || 0)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectCatalogItem(catalogModalTargetIndex, 'service', srv.id);
+                                  setCatalogModalTargetIndex(null);
+                                }}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <span>Pilih Jasa</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCatalogModalTargetIndex(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Tutup Katalog
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

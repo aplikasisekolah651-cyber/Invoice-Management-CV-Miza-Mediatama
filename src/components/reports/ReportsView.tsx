@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Clock,
+  Printer,
 } from 'lucide-react';
 import {
   Invoice,
@@ -23,6 +24,8 @@ import {
   SalesPerson,
   AuditLog,
   RoleType,
+  User,
+  CompanySetting,
 } from '../../types';
 import {
   formatRupiah,
@@ -30,6 +33,7 @@ import {
   formatIndonesianDate,
 } from '../../services/calculation';
 import { ExportService } from '../../services/exportService';
+import { ReportPrintModal, ReportType } from './ReportPrintModal';
 
 interface ReportsViewProps {
   invoices: Invoice[];
@@ -40,6 +44,8 @@ interface ReportsViewProps {
   salesList: SalesPerson[];
   auditLogs: AuditLog[];
   userRole: RoleType;
+  currentUser?: User;
+  company?: CompanySetting;
   initialTab?: string;
   onViewInvoice: (invoiceId: string) => void;
 }
@@ -53,12 +59,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   salesList,
   auditLogs,
   userRole,
+  currentUser,
+  company,
   initialTab = 'profit-loss',
   onViewInvoice,
 }) => {
-  const [reportTab, setReportTab] = useState<
-    'profit-loss' | 'sales' | 'ppn' | 'aging' | 'cash' | 'products' | 'audit'
-  >(() => {
+  const [reportTab, setReportTab] = useState<ReportType>(() => {
     if (initialTab === 'reports-profit-loss' || initialTab === 'profit-loss') return 'profit-loss';
     if (initialTab === 'reports-sales' || initialTab === 'sales') return 'sales';
     if (initialTab === 'reports-receivables' || initialTab === 'aging') return 'aging';
@@ -70,6 +76,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [dateEnd, setDateEnd] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('all');
   const [selectedSalesId, setSelectedSalesId] = useState('all');
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   // Filtered invoices for financial reports
   const filteredInvoices = useMemo(() => {
@@ -271,13 +278,23 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleExportCurrentReport}
-          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all self-start sm:self-center cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Excel (.xlsx)</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={() => setIsPrintModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Cetak Laporan (Print/PDF)</span>
+          </button>
+
+          <button
+            onClick={handleExportCurrentReport}
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Excel (.xlsx)</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1094,6 +1111,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* PRINT REPORT MODAL */}
+      <ReportPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        reportType={reportTab}
+        invoices={invoices}
+        payments={payments}
+        customers={customers}
+        products={products}
+        services={services}
+        salesList={salesList}
+        auditLogs={auditLogs}
+        dateStart={dateStart}
+        dateEnd={dateEnd}
+        selectedCustomerId={selectedCustomerId}
+        selectedSalesId={selectedSalesId}
+        company={company}
+        currentUser={currentUser}
+      />
     </div>
   );
 };
