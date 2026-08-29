@@ -22,7 +22,6 @@ import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
 import { initialCompany } from '../../services/initialData';
 import { MizaLogoIcon } from '../common/MizaBrandLogo';
-import { LunasStamp } from '../common/LunasStamp';
 
 interface InvoicePrintTemplateProps {
   invoice: Invoice;
@@ -361,9 +360,9 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
         </div>
       </div>
 
-      {/* 4. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & MARKETING) & WATERMARK LUNAS IN CENTER */}
+      {/* 4. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & MARKETING) */}
       <div className="mt-2.5 pt-1.5 border-t border-slate-200 text-center text-[10px]">
-        <div className="flex justify-between items-center px-4 sm:px-10 relative">
+        <div className="flex justify-between items-start px-4 sm:px-10">
           {/* 1. Signatory: Customer / Penerima */}
           <div className="w-36 sm:w-48 flex flex-col items-center">
             <div className="text-slate-800 font-bold text-[10px] sm:text-[10.5px] uppercase tracking-wide">
@@ -378,13 +377,6 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
               </div>
             </div>
           </div>
-
-          {/* Center: Watermark / Stamp LUNAS (Authentic Stamped Graphic) */}
-          {isPaid && (
-            <div className="flex flex-col items-center justify-center select-none py-0.5 px-1 shrink-0">
-              <LunasStamp size={isCompact ? 90 : 105} />
-            </div>
-          )}
 
           {/* 2. Signatory: MARKETING (Filled with Sales name) */}
           <div className="w-36 sm:w-48 flex flex-col items-center">
