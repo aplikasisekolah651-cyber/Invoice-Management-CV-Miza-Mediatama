@@ -28,6 +28,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>(mode);
   const [name, setName] = useState(currentUser.name);
+  const [username, setUsername] = useState(currentUser.username || currentUser.email.split('@')[0] || '');
   const [email, setEmail] = useState(currentUser.email);
   const [phone, setPhone] = useState(currentUser.phone || '');
   
@@ -44,6 +45,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     onSaveProfile({
       ...currentUser,
       name: name.trim(),
+      username: username.toLowerCase().trim() || currentUser.username,
       email: email.trim(),
       phone: phone.trim(),
     });
@@ -55,14 +57,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 6) {
-      setStatusMsg({ text: 'Password baru minimal harus 6 karakter.', type: 'error' });
+    if (currentUser.password && oldPassword && oldPassword !== currentUser.password) {
+      setStatusMsg({ text: 'Password lama tidak sesuai.', type: 'error' });
+      return;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      setStatusMsg({ text: 'Password baru minimal harus 4 karakter.', type: 'error' });
       return;
     }
     if (newPassword !== confirmPassword) {
       setStatusMsg({ text: 'Konfirmasi password baru tidak cocok.', type: 'error' });
       return;
     }
+    onSaveProfile({
+      ...currentUser,
+      password: newPassword,
+    });
     setStatusMsg({ text: 'Kata sandi berhasil diubah.', type: 'success' });
     setTimeout(() => {
       onClose();
@@ -142,6 +152,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Tab 1: Profile */}
         {activeTab === 'profile' && (
           <form onSubmit={handleSaveProfile} className="space-y-3.5">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Username (Bukan Email)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+                  required
+                  placeholder="admin / budi / operator"
+                  className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 font-mono font-bold text-indigo-950"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Digunakan untuk login cepat ke sistem.
+              </span>
+            </div>
+
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Nama Lengkap</label>
               <input

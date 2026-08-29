@@ -33,9 +33,9 @@ interface NavbarProps {
 }
 
 const DEFAULT_USERS: User[] = [
-  { id: 'usr-1', name: 'Admin Keuangan', email: 'admin@mizamediatama.com', role: 'admin', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'usr-2', name: 'Operator Billing', email: 'operator@mizamediatama.com', role: 'operator', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
-  { id: 'usr-3', name: 'Manager Keuangan', email: 'manager@mizamediatama.com', role: 'manager', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'usr-1', username: 'admin', name: 'Admin Keuangan', email: 'admin@mizamediatama.com', role: 'admin', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'usr-2', username: 'operator', name: 'Operator Billing', email: 'operator@mizamediatama.com', role: 'operator', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
+  { id: 'usr-3', username: 'manager', name: 'Manager Keuangan', email: 'manager@mizamediatama.com', role: 'manager', isActive: true, createdAt: '2025-01-01T00:00:00.000Z' },
 ];
 
 export const Navbar: React.FC<NavbarProps> = ({

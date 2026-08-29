@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { RoleType, CompanySetting } from '../../types';
 import { initialCompany } from '../../services/initialData';
+import { MizaLogoIcon } from '../common/MizaBrandLogo';
 
 export type NavView =
   | 'dashboard'
@@ -134,8 +135,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         } print:hidden`}
       >
         {/* Company Header Branding */}
-        <div className="p-4.5 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
             {activeCompany.logoUrl ? (
               <img
                 src={activeCompany.logoUrl}
@@ -143,13 +144,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shrink-0 shadow-xs"
               />
             ) : (
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-xs text-xs tracking-wider shrink-0">
-                MM
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 shadow-xs">
+                <MizaLogoIcon className="w-full h-full object-contain" />
               </div>
             )}
             <div className="min-w-0">
               <h1 className="font-bold text-xs text-white tracking-tight truncate leading-tight">
-                {activeCompany.name}
+                {activeCompany.name?.toUpperCase().includes('MIZA') ? (
+                  <>
+                    <span>CV.</span>
+                    <span className="text-[#00AEEF]">MIZA</span>{' '}
+                    <span>MEDIATAMA</span>
+                  </>
+                ) : (
+                  activeCompany.name
+                )}
               </h1>
               <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5 uppercase tracking-wider">
                 Financial Billing

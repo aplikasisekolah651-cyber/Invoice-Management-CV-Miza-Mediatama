@@ -23,8 +23,9 @@ import {
   formatShortDate,
 } from '../../services/calculation';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { initialCompany } from '../../services/initialData';
+import { MizaLogoIcon } from '../common/MizaBrandLogo';
 
 interface InvoicePrintTemplateProps {
   invoice: Invoice;
@@ -53,84 +54,13 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
       setIsGeneratingPdf(true);
       const element = printAreaRef.current;
 
-      const canvas = await html2canvas(element, {
-        scale: 2.5,
-        useCORS: true,
-        logging: false,
+      // Use html-to-image which natively supports modern CSS color functions (oklch)
+      const imgData = await toPng(element, {
+        quality: 0.98,
+        pixelRatio: 2.5,
         backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          // Helper to convert oklch colors into rgb/hex via canvas 2D context
-          const canvasHelper = document.createElement('canvas');
-          const ctx = canvasHelper.getContext('2d');
-
-          const convertColor = (colorStr: string): string => {
-            if (!colorStr || typeof colorStr !== 'string' || !colorStr.includes('oklch')) {
-              return colorStr;
-            }
-            try {
-              if (ctx) {
-                ctx.fillStyle = '#000000';
-                ctx.fillStyle = colorStr;
-                return ctx.fillStyle;
-              }
-            } catch {
-              // fallback
-            }
-            return '#000000';
-          };
-
-          const convertAllOklchInString = (text: string): string => {
-            if (!text || typeof text !== 'string' || !text.includes('oklch')) {
-              return text;
-            }
-            return text.replace(/oklch\([^)]+\)/gi, (match) => convertColor(match));
-          };
-
-          // 1. Sanitize all <style> tags in cloned document (converts Tailwind v4 oklch CSS variables)
-          const styleTags = clonedDoc.querySelectorAll('style');
-          styleTags.forEach((styleTag) => {
-            if (styleTag.textContent && styleTag.textContent.includes('oklch')) {
-              styleTag.textContent = convertAllOklchInString(styleTag.textContent);
-            }
-          });
-
-          // 2. Sanitize all elements in cloned document
-          const allElements = clonedDoc.querySelectorAll('*');
-          allElements.forEach((el) => {
-            const htmlEl = el as HTMLElement;
-            if (htmlEl.style && htmlEl.style.cssText && htmlEl.style.cssText.includes('oklch')) {
-              htmlEl.style.cssText = convertAllOklchInString(htmlEl.style.cssText);
-            }
-
-            // Check and override any computed oklch colors
-            try {
-              const comp = window.getComputedStyle(el);
-              const colorProperties: string[] = [
-                'color',
-                'backgroundColor',
-                'borderColor',
-                'borderTopColor',
-                'borderRightColor',
-                'borderBottomColor',
-                'borderLeftColor',
-                'outlineColor',
-                'fill',
-                'stroke',
-              ];
-              for (const prop of colorProperties) {
-                const val = (comp as Record<string, any>)[prop];
-                if (typeof val === 'string' && val.includes('oklch')) {
-                  (htmlEl.style as Record<string, any>)[prop] = convertColor(val);
-                }
-              }
-            } catch {
-              // ignore
-            }
-          });
-        },
+        cacheBust: true,
       });
-
-      const imgData = canvas.toDataURL('image/png');
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -139,9 +69,11 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgProps = pdf.getImageProperties(imgData);
+      const renderedHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, 297));
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(renderedHeight, pdfHeight));
       const cleanInvNum = invoice.invoiceNumber.replace(/[\/\\]/g, '-');
       pdf.save(`Invoice_${cleanInvNum}.pdf`);
     } catch (err) {
@@ -158,10 +90,10 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
     company.bankAccounts.find((b) => b.isDefault) ||
     company.bankAccounts[0];
 
-  const companySlogan =
+  const companySlogan = (
     activeCompany.tagline?.trim() ||
-    initialCompany.tagline ||
-    'Solusi Terpadu Pengadaan Barang, Jasa TI, Percetakan & Multimedia';
+    'KOMPUTER – ELEKTRONIK – FURNITUR – PERDAGANGAN UMUM'
+  ).toUpperCase();
 
   const isPaid = invoice.status === 'paid';
   const isPartial = invoice.status === 'partial';
@@ -231,34 +163,43 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
           )}
 
           <div>
-            {/* 1. HEADER: COMPANY IDENTITY & INVOICE META */}
-            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5">
-              {/* Left: Company Identity */}
-              <div className="max-w-[58%]">
-                <div className="flex items-center gap-3.5 mb-2">
-                  {activeCompany.logoUrl ? (
-                    <img
-                      src={activeCompany.logoUrl}
-                      alt={activeCompany.name}
-                      className="max-h-14 max-w-[150px] w-auto h-auto object-contain"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-xs">
-                      {activeCompany.name?.substring(0, 2).toUpperCase() || 'CV'}
+            {/* 1. HEADER: COMPANY IDENTITY & INVOICE META / RECIPIENT (50% / 50% EQUAL WIDTH) */}
+            <div className="grid grid-cols-2 gap-5 items-start border-b-2 border-slate-900 pb-3.5">
+              {/* Left Column (50%): Company Identity */}
+              <div className="pr-2">
+                <div className="mb-2">
+                  {/* Brand Lockup: Logo on Left, CV.MIZA MEDIATAMA and Slogan on Right */}
+                  <div className="flex items-center gap-2.5">
+                    {activeCompany.logoUrl ? (
+                      <img
+                        src={activeCompany.logoUrl}
+                        alt={activeCompany.name}
+                        className="max-h-12 max-w-[130px] w-auto h-auto object-contain shrink-0"
+                      />
+                    ) : (
+                      <MizaLogoIcon className="h-11 w-auto shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <h1 className="text-[17px] font-black tracking-tight leading-none uppercase font-sans">
+                        {activeCompany.name?.toUpperCase().includes('MIZA') ? (
+                          <>
+                            <span className="text-black">CV.</span>
+                            <span className="text-[#00AEEF]">MIZA</span>{' '}
+                            <span className="text-black">MEDIATAMA</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-900">{activeCompany.name}</span>
+                        )}
+                      </h1>
+                      {/* Slogan tepat dibawah nama CV tanpa border */}
+                      <p className="text-[9.5px] font-bold text-slate-800 tracking-wide uppercase leading-tight mt-1">
+                        {companySlogan}
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <h1 className="text-xl font-black tracking-tight text-slate-900 leading-tight">
-                      {activeCompany.name}
-                    </h1>
-                    {/* SLOGAN TOKO / PERUSAHAAN DITAMPILKAN DIBAWAH NAMA CV */}
-                    <p className="text-[11px] font-semibold text-blue-800 tracking-normal italic mt-0.5">
-                      "{companySlogan}"
-                    </p>
                   </div>
                 </div>
 
-                <div className="text-[10.5px] text-slate-600 leading-relaxed space-y-0.5 pl-0.5 mt-1.5">
+                <div className="text-[10px] text-slate-600 leading-relaxed space-y-0.5 pl-0.5 mt-1.5">
                   <p className="flex items-start gap-1">
                     <MapPin className="w-3 h-3 text-slate-400 mt-0.5 shrink-0" />
                     <span>
@@ -268,13 +209,11 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                       {activeCompany.city}, {activeCompany.province} {activeCompany.postalCode}
                     </span>
                   </p>
-                  <p className="flex items-center gap-3">
-                    <span>
-                      <strong className="text-slate-800 font-semibold">NPWP:</strong> {activeCompany.npwp || '-'}
-                    </span>
-                    <span>
-                      <strong className="text-slate-800 font-semibold">Telp/WA:</strong> {activeCompany.phone}
-                    </span>
+                  <p>
+                    <strong className="text-slate-800 font-semibold">NPWP:</strong> {activeCompany.npwp || '-'}
+                  </p>
+                  <p>
+                    <strong className="text-slate-800 font-semibold">Telp/WA:</strong> {activeCompany.phone}
                   </p>
                   {activeCompany.email && (
                     <p className="flex items-center gap-1 text-slate-500">
@@ -291,39 +230,40 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                 </div>
               </div>
 
-              {/* Right: Invoice Title & Meta Card */}
-              <div className="text-right">
-                <div className="inline-block bg-slate-900 text-white px-3 py-1 rounded-md text-[10px] font-bold tracking-widest uppercase mb-1">
-                  FAKTUR PENJUALAN
-                </div>
-                <div className="text-2xl font-black tracking-tight text-slate-900 uppercase">
-                  INVOICE
-                </div>
-                <div className="text-xs font-bold text-blue-900 font-mono mt-0.5 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
-                  {invoice.invoiceNumber}
+              {/* Right Column (50%): Invoice Title, Meta Card & KEPADA Section */}
+              <div className="pl-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="inline-block bg-slate-900 text-white px-2 py-0.5 rounded text-[9px] font-bold tracking-widest uppercase mb-0.5">
+                      FAKTUR PENJUALAN
+                    </div>
+                    <div className="text-xl font-black tracking-tight text-slate-900 uppercase leading-none">
+                      INVOICE
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold text-blue-900 font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
+                      {invoice.invoiceNumber}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-2.5 space-y-1 text-[11px] text-right">
-                  <div className="flex justify-end gap-2 text-slate-600">
+                {/* Date & PO Meta */}
+                <div className="mt-1.5 space-y-0.5 text-[10.5px]">
+                  <div className="flex justify-between items-center text-slate-600">
                     <span className="text-slate-500">Tanggal Invoice:</span>
                     <strong className="text-slate-900 font-semibold font-mono">
                       {formatShortDate(invoice.invoiceDate)}
                     </strong>
                   </div>
-                  <div className="flex justify-end gap-2 text-slate-600">
-                    <span className="text-slate-500">Jatuh Tempo:</span>
-                    <strong className="text-rose-700 font-bold font-mono">
-                      {formatShortDate(invoice.dueDate)}
-                    </strong>
-                  </div>
                   {invoice.poNumber && (
-                    <div className="flex justify-end gap-2 text-slate-600">
+                    <div className="flex justify-between items-center text-slate-600">
                       <span className="text-slate-500">No. PO:</span>
                       <strong className="text-slate-800 font-medium">{invoice.poNumber}</strong>
                     </div>
                   )}
                   {invoice.deliveryDate && (
-                    <div className="flex justify-end gap-2 text-slate-600">
+                    <div className="flex justify-between items-center text-slate-600">
                       <span className="text-slate-500">Tgl Pengiriman:</span>
                       <span className="text-slate-800 font-medium font-mono">
                         {formatShortDate(invoice.deliveryDate)}
@@ -331,65 +271,33 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* KEPADA : Kolom Pelanggan Diletakkan Dibawah Tanggal Invoice */}
+                <div className="mt-2 pt-1.5 border-t border-slate-200/90 text-left bg-slate-50/80 p-2 rounded-lg border border-slate-200">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                    <span className="font-extrabold text-slate-800">KEPADA :</span>
+                  </div>
+                  <div className="text-[11px] font-black text-slate-900 pl-2.5 leading-tight">
+                    {invoice.customerSnapshot?.companyName || invoice.customerSnapshot?.name}
+                  </div>
+                  {invoice.customerSnapshot?.companyName && invoice.customerSnapshot?.name && (
+                    <div className="text-slate-700 font-semibold text-[10px] mt-0.5 pl-2.5">
+                      Attn: {invoice.customerSnapshot?.name}
+                    </div>
+                  )}
+                  {invoice.customerSnapshot?.address && (
+                    <div className="text-slate-600 text-[9.5px] mt-0.5 leading-tight pl-2.5">
+                      {invoice.customerSnapshot.address}
+                      {invoice.customerSnapshot.city ? `, ${invoice.customerSnapshot.city}` : ''}
+                      {invoice.customerSnapshot.postalCode ? ` ${invoice.customerSnapshot.postalCode}` : ''}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* 2. CUSTOMER & BILL TO BOX */}
-            <div className="my-4 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/90 p-3.5 rounded-xl border border-slate-200 text-[11px]">
-              <div>
-                <div className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                  <span>TAGIHAN DITUJUKAN KEPADA (BILL TO):</span>
-                </div>
-                <div className="text-xs font-black text-slate-900">
-                  {invoice.customerSnapshot?.companyName || invoice.customerSnapshot?.name}
-                </div>
-                {invoice.customerSnapshot?.companyName && (
-                  <div className="text-slate-700 font-semibold mt-0.5">
-                    Attn: {invoice.customerSnapshot?.name}
-                  </div>
-                )}
-                <div className="text-slate-600 mt-1 leading-relaxed">
-                  {invoice.customerSnapshot?.address}, {invoice.customerSnapshot?.city}{' '}
-                  {invoice.customerSnapshot?.postalCode}
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-end text-left sm:text-right space-y-0.5 text-slate-600 border-t sm:border-t-0 pt-2 sm:pt-0 sm:border-l sm:border-slate-200 sm:pl-4">
-                {invoice.customerSnapshot?.npwp && (
-                  <div>
-                    <span className="text-slate-500 font-normal">NPWP Pelanggan:</span>{' '}
-                    <span className="font-semibold text-slate-800 font-mono">
-                      {invoice.customerSnapshot.npwp}
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <span className="text-slate-500 font-normal">Telepon / Kontak:</span>{' '}
-                  <span className="font-semibold text-slate-800">
-                    {invoice.customerSnapshot?.phone || '-'}
-                  </span>
-                </div>
-                {invoice.customerSnapshot?.email && (
-                  <div>
-                    <span className="text-slate-500 font-normal">Email:</span>{' '}
-                    <span className="font-medium text-slate-800">
-                      {invoice.customerSnapshot.email}
-                    </span>
-                  </div>
-                )}
-                {invoice.salesSnapshot && (
-                  <div className="pt-1 text-slate-700">
-                    <span className="text-slate-500 font-normal">Sales In Charge:</span>{' '}
-                    <span className="font-semibold text-slate-900">
-                      {invoice.salesSnapshot.name}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 3. TABLE ITEM RINCIAN */}
+            {/* 2. TABLE ITEM RINCIAN */}
             <div className="mt-3 overflow-hidden rounded-lg border border-slate-300">
               <table className="w-full text-left text-[11px] border-collapse">
                 <thead>
@@ -473,31 +381,23 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                         Rekening Resmi CV
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-slate-900 text-xs">
-                          {currentBank.bankName}{' '}
-                          {currentBank.branch && (
-                            <span className="text-[10px] font-normal text-slate-500">
-                              ({currentBank.branch})
-                            </span>
-                          )}
-                        </div>
-                        <div className="font-black font-mono text-sm text-blue-950 tracking-wider">
-                          {currentBank.accountNumber}
-                        </div>
-                        <div className="text-slate-600 text-[10px]">
-                          A.N.{' '}
-                          <strong className="text-slate-900 font-semibold">
-                            {currentBank.accountHolder}
-                          </strong>
-                        </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-xs">
+                        {currentBank.bankName}{' '}
+                        {currentBank.branch && (
+                          <span className="text-[10px] font-normal text-slate-500">
+                            ({currentBank.branch})
+                          </span>
+                        )}
                       </div>
-                      <div className="text-center pl-2">
-                        <div className="w-12 h-12 bg-white border border-blue-200 rounded p-1 flex items-center justify-center shadow-2xs">
-                          <QrCode className="w-10 h-10 text-slate-800" />
-                        </div>
-                        <span className="text-[8px] text-slate-400 block mt-0.5">Validasi Tagihan</span>
+                      <div className="font-black font-mono text-sm text-blue-950 tracking-wider">
+                        {currentBank.accountNumber}
+                      </div>
+                      <div className="text-slate-600 text-[10px]">
+                        A.N.{' '}
+                        <strong className="text-slate-900 font-semibold">
+                          {currentBank.accountHolder}
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -583,30 +483,20 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
               </div>
             </div>
 
-            {/* 5. NOTES & TERMS */}
-            {(invoice.notes || invoice.terms) && (
-              <div className="mt-3.5 pt-2.5 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[10px] text-slate-600">
-                {invoice.notes && (
-                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                    <div className="font-bold text-slate-800 uppercase text-[9px] mb-0.5">
-                      Catatan Tagihan:
-                    </div>
-                    <div className="whitespace-pre-line leading-relaxed">{invoice.notes}</div>
+            {/* 5. TERMS (IF ANY) */}
+            {invoice.terms && (
+              <div className="mt-3.5 pt-2.5 border-t border-slate-200 text-[10px] text-slate-600">
+                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                  <div className="font-bold text-slate-800 uppercase text-[9px] mb-0.5">
+                    Syarat & Ketentuan:
                   </div>
-                )}
-                {invoice.terms && (
-                  <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                    <div className="font-bold text-slate-800 uppercase text-[9px] mb-0.5">
-                      Syarat & Ketentuan:
-                    </div>
-                    <div className="whitespace-pre-line leading-relaxed">{invoice.terms}</div>
-                  </div>
-                )}
+                  <div className="whitespace-pre-line leading-relaxed">{invoice.terms}</div>
+                </div>
               </div>
             )}
           </div>
 
-          {/* 6. SIGNATURES & FOOTER */}
+          {/* 6. SIGNATURES */}
           <div className="mt-6 pt-3 border-t border-slate-200 text-center text-[10px]">
             <div className="grid grid-cols-3 gap-4">
               {/* Signatory 1: Customer */}
@@ -648,16 +538,6 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
                   ( {invoice.signatoryFinanceName || 'Ahmad Miza, S.T.'} )
                 </div>
               </div>
-            </div>
-
-            {/* Document Footer Note */}
-            <div className="mt-5 pt-2 border-t border-slate-100 text-[9px] text-slate-400 flex flex-wrap justify-between items-center gap-2">
-              <span>
-                Dokumen resmi ini dicetak secara sah melalui sistem manajemen faktur {activeCompany.name}
-              </span>
-              <span>
-                Dicetak: {formatIndonesianDate(new Date().toISOString())}
-              </span>
             </div>
           </div>
         </div>

@@ -119,6 +119,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // User Management State (Add & Edit)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userUsername, setUserUsername] = useState('');
   const [userFullName, setUserFullName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userPassword, setUserPassword] = useState('');
@@ -342,6 +343,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // --- USER CRUD HANDLERS ---
   const handleOpenAddUser = () => {
     setEditingUser(null);
+    setUserUsername('');
     setUserFullName('');
     setUserEmail('');
     setUserPassword('operator123');
@@ -355,6 +357,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleOpenEditUser = (user: User) => {
     setEditingUser(user);
+    setUserUsername(user.username || user.email.split('@')[0] || '');
     setUserFullName(user.name);
     setUserEmail(user.email);
     setUserPassword(user.password || '');
@@ -381,13 +384,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSaveUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userFullName.trim() || !userEmail.trim()) return;
+    if (!userFullName.trim()) return;
+
+    const finalUsername = (
+      userUsername.trim() ||
+      userEmail.split('@')[0] ||
+      userFullName.toLowerCase().replace(/[^a-z0-9]/g, '_')
+    ).toLowerCase();
+
+    const finalEmail = userEmail.trim() || `${finalUsername}@mizamediatama.com`;
 
     if (editingUser) {
       onSaveUser({
         ...editingUser,
+        username: finalUsername,
         name: userFullName.trim(),
-        email: userEmail.trim(),
+        email: finalEmail,
         password: userPassword.trim() || editingUser.password || 'admin123',
         phone: userPhone.trim(),
         role: userRole,
@@ -397,8 +409,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } else {
       onSaveUser({
         id: `user-${Date.now()}`,
+        username: finalUsername,
         name: userFullName.trim(),
-        email: userEmail.trim(),
+        email: finalEmail,
         password: userPassword.trim() || `${userRole}123`,
         phone: userPhone.trim(),
         role: userRole,
@@ -1284,7 +1297,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate mt-0.5">{u.email}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 font-mono">
+                            @{u.username || u.email.split('@')[0]}
+                          </span>
+                          <span className="text-[11px] text-slate-400 truncate">{u.email}</span>
+                        </div>
                         {u.phone && <div className="text-[10px] text-slate-400 mt-0.5">{u.phone}</div>}
                       </div>
                     </div>
@@ -1502,6 +1520,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
+                      Username (Bukan Email) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
+                      <input
+                        type="text"
+                        value={userUsername}
+                        onChange={(e) => setUserUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-bold text-indigo-950 font-mono"
+                        required
+                        placeholder="admin / budi / operator1"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Digunakan untuk login langsung tanpa perlu mengetik email.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
                       Nama Lengkap <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -1516,21 +1554,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Email / Akun Login <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={userEmail}
-                      onChange={(e) => setUserEmail(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-medium"
-                      required
-                      placeholder="hendra@mizamediatama.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Kata Sandi Login
+                      Kata Sandi Login <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -1543,17 +1567,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setShowUserPassword(!showUserPassword)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                       >
                         {showUserPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                     <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Kata sandi digunakan untuk login ke sistem.
+                      Admin dapat mengubah kata sandi pengguna sewaktu-waktu.
                     </span>
                   </div>
 
                   <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Email (Opsional / Kontak)
+                    </label>
+                    <input
+                      type="email"
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 font-medium"
+                      placeholder="hendra@mizamediatama.com"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 mb-1">No. Telepon / WhatsApp</label>
                     <input
                       type="text"

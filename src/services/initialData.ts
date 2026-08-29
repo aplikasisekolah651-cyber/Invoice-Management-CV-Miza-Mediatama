@@ -17,7 +17,7 @@ import { calculateInvoiceSummary } from './calculation';
 
 export const initialCompany: CompanySetting = {
   name: 'CV. MIZA MEDIATAMA',
-  tagline: 'Solusi Terpadu Pengadaan Barang, Jasa TI, Percetakan & Multimedia',
+  tagline: 'KOMPUTER – ELEKTRONIK – FURNITUR – PERDAGANGAN UMUM',
   logoUrl: '', // Can be uploaded dynamically
   address: 'Senggotan No 241B RT 09',
   rtRw: 'RT 09',
