@@ -21,6 +21,7 @@ import {
   formatRupiah,
   formatIndonesianDate,
   formatShortDate,
+  numberToTerbilang,
 } from '../../services/calculation';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -148,7 +149,7 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
         <div
           ref={printAreaRef}
           id="invoice-document"
-          className="w-full max-w-[210mm] min-h-[297mm] bg-white p-8 sm:p-10 shadow-lg print:shadow-none print:p-8 text-slate-900 flex flex-col justify-between font-sans border border-slate-200 print:border-none relative"
+          className="w-full max-w-[210mm] min-h-[297mm] bg-white p-8 sm:p-10 shadow-lg print:shadow-none print:p-8 text-slate-900 font-sans border border-slate-200 print:border-none relative"
           style={{ boxSizing: 'border-box' }}
         >
           {/* Status Watermark Stamp */}
@@ -162,9 +163,8 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
             </div>
           )}
 
-          <div>
-            {/* 1. HEADER: COMPANY IDENTITY & INVOICE META / RECIPIENT (50% / 50% EQUAL WIDTH) */}
-            <div className="grid grid-cols-2 gap-5 items-start border-b-2 border-slate-900 pb-3.5">
+          {/* 1. HEADER: COMPANY IDENTITY & INVOICE META / RECIPIENT (50% / 50% EQUAL WIDTH) */}
+          <div className="grid grid-cols-2 gap-5 items-start border-b-2 border-slate-900 pb-3.5">
               {/* Left Column (50%): Company Identity */}
               <div className="pr-2">
                 <div className="mb-2">
@@ -354,43 +354,53 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
 
             {/* 4. SUMMARY / TOTALS SECTION */}
             <div className="mt-4 flex flex-col sm:flex-row justify-between items-start gap-5 border-t border-slate-200 pt-3">
-              {/* Left Side: Terbilang Box & Bank Payment Details */}
-              <div className="w-full sm:w-[54%] space-y-2.5">
+              {/* Left Side: Terbilang Box, Syarat & Ketentuan, & Bank Payment Details */}
+              <div className="w-full sm:w-[54%] space-y-2">
                 {/* Terbilang Box */}
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px]">
                   <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-0.5 flex items-center gap-1">
                     <span>JUMLAH TERBILANG:</span>
                   </div>
                   <div className="font-bold italic text-slate-800 leading-snug">
-                    # {invoice.terbilang} #
+                    # {invoice.grandTotal !== undefined ? `${numberToTerbilang(invoice.grandTotal)} Rupiah` : (invoice.terbilang || 'Nol Rupiah')} #
                   </div>
                 </div>
 
+                {/* Syarat & Ketentuan (Tepat mepet di bawah Jumlah Terbilang) */}
+                {invoice.terms && (
+                  <div className="bg-slate-50/90 p-2 rounded-lg border border-slate-200/80 text-[9.5px] text-slate-600">
+                    <div className="font-bold text-slate-800 uppercase text-[9px] mb-0.5">
+                      Syarat & Ketentuan:
+                    </div>
+                    <div className="whitespace-pre-line leading-relaxed text-[9.5px]">{invoice.terms}</div>
+                  </div>
+                )}
+
                 {/* Bank Account Transfer Info */}
-                {currentBank && (
-                  <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-[10.5px] space-y-1 text-slate-700 relative overflow-hidden">
+                {invoice.showPaymentInfo !== false && currentBank && (
+                  <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100 text-[10px] space-y-1 text-slate-700 relative overflow-hidden">
                     <div className="flex items-center justify-between border-b border-blue-200/60 pb-1 mb-1">
-                      <span className="font-bold text-blue-900 uppercase text-[10px] flex items-center gap-1">
+                      <span className="font-bold text-blue-900 uppercase text-[9.5px] flex items-center gap-1">
                         <CreditCard className="w-3.5 h-3.5 text-blue-700" />
                         <span>INFORMASI TRANSFER PEMBAYARAN</span>
                       </span>
-                      <span className="text-[9px] font-semibold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
+                      <span className="text-[8.5px] font-semibold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
                         Rekening Resmi CV
                       </span>
                     </div>
                     <div>
-                      <div className="font-bold text-slate-900 text-xs">
+                      <div className="font-bold text-slate-900 text-[11px]">
                         {currentBank.bankName}{' '}
                         {currentBank.branch && (
-                          <span className="text-[10px] font-normal text-slate-500">
+                          <span className="text-[9.5px] font-normal text-slate-500">
                             ({currentBank.branch})
                           </span>
                         )}
                       </div>
-                      <div className="font-black font-mono text-sm text-blue-950 tracking-wider">
+                      <div className="font-black font-mono text-xs sm:text-sm text-blue-950 tracking-wider">
                         {currentBank.accountNumber}
                       </div>
-                      <div className="text-slate-600 text-[10px]">
+                      <div className="text-slate-600 text-[9.5px]">
                         A.N.{' '}
                         <strong className="text-slate-900 font-semibold">
                           {currentBank.accountHolder}
@@ -480,69 +490,50 @@ export const InvoicePrintTemplate: React.FC<InvoicePrintTemplateProps> = ({
               </div>
             </div>
 
-            {/* 5. TERMS (IF ANY) */}
-            {invoice.terms && (
-              <div className="mt-3.5 pt-2.5 border-t border-slate-200 text-[10px] text-slate-600">
-                <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                  <div className="font-bold text-slate-800 uppercase text-[9px] mb-0.5">
-                    Syarat & Ketentuan:
+            {/* 5. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & MARKETING) MEpet KE ATAS */}
+            <div className="mt-3 pt-2.5 border-t border-slate-200 text-center text-[10px]">
+              <div className="flex justify-between items-start px-8 sm:px-16">
+                {/* 1. Signatory: Customer / Penerima */}
+                <div className="w-52 flex flex-col items-center">
+                  <div className="text-slate-700 font-semibold text-[10px] uppercase">
+                    PENERIMA,
                   </div>
-                  <div className="whitespace-pre-line leading-relaxed">{invoice.terms}</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 6. SIGNATURES */}
-          <div className="mt-6 pt-3 border-t border-slate-200 text-center text-[10px]">
-            <div className="grid grid-cols-3 gap-4">
-              {/* Signatory 1: Customer */}
-              <div>
-                <div className="text-slate-600 font-medium">Penerima / Pelanggan,</div>
-                <div className="h-16 flex items-end justify-center">
-                  <div className="border-b border-slate-400 w-36" />
-                </div>
-                <div className="font-bold text-slate-900 mt-1 truncate px-2">
-                  ( {invoice.signatoryCustomerName || '...............................'} )
-                </div>
-              </div>
-
-              {/* Signatory 2: Sales */}
-              <div>
-                <div className="text-slate-600 font-medium">Hormat Kami,</div>
-                <div className="h-16 flex items-end justify-center">
-                  <div className="border-b border-slate-400 w-36" />
-                </div>
-                <div className="font-bold text-slate-900 mt-1 truncate px-2">
-                  ( {invoice.signatorySalesName || invoice.salesSnapshot?.name || 'Budi Prasetyo, S.Kom'} )
-                </div>
-              </div>
-
-              {/* Signatory 3: Director / Finance with Materai slot if active */}
-              <div>
-                <div className="text-slate-600 font-medium">
-                  Mengetahui ({activeCompany.name || 'CV'}),
-                </div>
-                <div className="h-16 flex items-center justify-center relative">
-                  {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
-                    <div className="border border-dashed border-slate-300 text-[8px] text-slate-400 px-2 py-1 rounded">
-                      Materai Tempel Rp 10.000
+                  <div className="h-16 flex items-end justify-center w-full">
+                    <div className="border-b border-slate-400 w-44" />
+                  </div>
+                  <div className="mt-1.5 text-center w-full">
+                    <div className="font-bold text-slate-900 truncate px-1 text-[10.5px]">
+                      ( {invoice.signatoryCustomerName || invoice.customerSnapshot?.contactPerson || invoice.customerSnapshot?.name || '................................'} )
                     </div>
-                  )}
-                  <div className="border-b border-slate-400 w-36 absolute bottom-0" />
+                  </div>
                 </div>
-                <div className="font-bold text-slate-900 mt-1 truncate px-2">
-                  ( {invoice.signatoryFinanceName || activeCompany.directorName || 'Ahmad Miza, S.T.'} )
-                </div>
-                <div className="text-[9px] text-slate-500 font-semibold uppercase mt-0.5">
-                  {activeCompany.directorTitle || 'Pimpinan / Direktur'}
+
+                {/* 2. Signatory: MARKETING (Filled with Sales name) */}
+                <div className="w-52 flex flex-col items-center">
+                  <div className="text-slate-700 font-semibold text-[10px] uppercase">
+                    MARKETING,
+                  </div>
+                  <div className="h-16 flex items-center justify-center relative w-full">
+                    {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
+                      <div className="border border-dashed border-slate-300 text-[8px] text-slate-400 px-2 py-0.5 rounded leading-none mb-2">
+                        Materai Tempel Rp 10.000
+                      </div>
+                    )}
+                    <div className="border-b border-slate-400 w-44 absolute bottom-0" />
+                  </div>
+                  <div className="mt-1.5 text-center w-full">
+                    <div className="font-bold text-slate-900 truncate px-1 text-[10.5px]">
+                      ( {invoice.salesSnapshot?.name || invoice.signatorySalesName || invoice.createdByName || '................................'} )
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
   );
 };
+
+export default InvoicePrintTemplate;
 

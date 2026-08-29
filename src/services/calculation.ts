@@ -257,7 +257,7 @@ export function numberToTerbilang(num: number): string {
       return 'Seratus ' + terbilangHelper(val - 100);
     } else if (val < 1000) {
       return (
-        terbilangHelper(Math.floor(val / 10)) +
+        terbilangHelper(Math.floor(val / 100)) +
         ' Ratus ' +
         terbilangHelper(val % 100)
       );

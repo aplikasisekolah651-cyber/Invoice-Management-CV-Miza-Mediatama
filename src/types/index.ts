@@ -149,6 +149,7 @@ export interface InvoiceSetting {
   signatoryFinanceTitle: string;
   defaultSignatorySalesName: string;
   defaultSignatoryFinanceName: string;
+  showPaymentInfo?: boolean; // Tampilkan informasi rekening bank / transfer pembayaran
 }
 
 export interface Customer {
@@ -293,9 +294,12 @@ export interface Invoice {
   terms?: string;
   bankAccountId?: string;
   bankAccountSnapshot?: BankAccount;
+  showPaymentInfo?: boolean; // Tampilkan rekening / transfer info pada cetak
   
   signatoryCustomerName?: string;
   signatorySalesName?: string;
+  signatoryWarehouseName?: string;
+  signatoryAdminName?: string;
   signatoryFinanceName?: string;
   
   status: InvoiceStatus;

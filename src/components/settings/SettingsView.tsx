@@ -138,6 +138,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [materaiThreshold, setMateraiThreshold] = useState(invoiceSetting?.materaiThreshold ?? 5000000);
   const [defaultNotes, setDefaultNotes] = useState(invoiceSetting?.defaultNotes || '');
   const [defaultTerms, setDefaultTerms] = useState(invoiceSetting?.defaultTerms || '');
+  const [showPaymentInfo, setShowPaymentInfo] = useState<boolean>(invoiceSetting?.showPaymentInfo ?? true);
   const [signatorySalesName, setSignatorySalesName] = useState(invoiceSetting?.defaultSignatorySalesName || '');
   const [signatoryFinanceName, setSignatoryFinanceName] = useState(invoiceSetting?.defaultSignatoryFinanceName || '');
 
@@ -364,6 +365,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       materaiThreshold: Number(materaiThreshold) || 5000000,
       defaultNotes: defaultNotes || '',
       defaultTerms: defaultTerms || '',
+      showPaymentInfo,
       defaultSignatorySalesName: (signatorySalesName || '').trim(),
       defaultSignatoryFinanceName: (signatoryFinanceName || '').trim(),
     });
@@ -1640,6 +1642,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
           </div>
 
+          {/* Payment Account Transfer Info Configuration */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={showPaymentInfo}
+                  onChange={(e) => setShowPaymentInfo(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span>Tampilkan Informasi Transfer Rekening / Bank pada Faktur Cetak (Default)</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                {showPaymentInfo ? 'Status: Ditampilkan' : 'Status: Disembunyikan'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 pl-6">
+              Jika diaktifkan, kotak instruksi transfer nomor rekening bank CV akan otomatis tercetak di sebelah kiri total tagihan invoice.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
@@ -1666,28 +1689,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Default Catatan / Keterangan Faktur
-            </label>
-            <textarea
-              rows={2}
-              value={defaultNotes}
-              onChange={(e) => setDefaultNotes(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 resize-none"
-            />
-          </div>
+          {/* Default Terms & Notes Configuration */}
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-bold text-slate-800">
+                  Default Catatan / Keterangan Faktur
+                </label>
+                <span className="text-[11px] text-slate-400">Tampil sebagai catatan tambahan di invoice</span>
+              </div>
+              <textarea
+                rows={2}
+                value={defaultNotes}
+                onChange={(e) => setDefaultNotes(e.target.value)}
+                placeholder="Contoh: Pembayaran dianggap sah jika telah ditransfer ke rekening resmi..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 resize-none text-xs"
+              />
+            </div>
 
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
-              Default Syarat & Ketentuan Pembayaran (Terms)
-            </label>
-            <textarea
-              rows={3}
-              value={defaultTerms}
-              onChange={(e) => setDefaultTerms(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-600 resize-none"
-            />
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="block font-bold text-slate-900">
+                  Default Syarat &amp; Ketentuan Pembayaran (Terms &amp; Conditions)
+                </label>
+                <span className="text-[11px] text-indigo-700 bg-indigo-50 font-semibold px-2 py-0.5 rounded-md border border-indigo-100">
+                  Otomatis diterapkan saat buat faktur baru
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-slate-500 font-medium mr-1">Pilihan Template Cepat:</span>
+                <button
+                  type="button"
+                  onClick={() => setDefaultTerms('1. Barang yang sudah dibeli tidak dapat ditukar/dikembalikan kecuali ada perjanjian garansi.\n2. Keterlambatan pembayaran setelah jatuh tempo akan dikenakan konfirmasi berkala.\n3. Pembayaran via Bilyet Giro/Cek baru dianggap lunas setelah dana efektif masuk rekening.')}
+                  className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  📋 Standar 3 Poin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDefaultTerms('1. Pembayaran Uang Muka (DP) minimal 50% saat PO disetujui.\n2. Pelunasan sisa 50% wajib dilakukan maksimal saat barang diterima/serah terima pekerjaan.\n3. Hak milik barang tetap pada penjual hingga seluruh tagihan lunas.')}
+                  className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  💳 Sistem DP 50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDefaultTerms('1. Pembayaran penuh (Full Payment) sebelum pesanan diproses atau dikirim.\n2. Konfirmasi bukti transfer wajib dilampirkan via WhatsApp/Email resmi.')}
+                  className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  ⚡ Pembayaran Di Awal (Cash)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDefaultTerms('1. Pembayaran jatuh tempo selambat-lambatnya 14 hari kalender sejak faktur diterbitkan.\n2. Komplain atas spesifikasi/kondisi fisik barang maksimal 2x24 jam sejak serah terima.')}
+                  className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  ⏱️ Tempo 14 Hari &amp; Komplain
+                </button>
+              </div>
+
+              <textarea
+                rows={4}
+                value={defaultTerms}
+                onChange={(e) => setDefaultTerms(e.target.value)}
+                placeholder="Tuliskan butir syarat & ketentuan pembayaran yang otomatis muncul pada setiap invoice baru..."
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-600 resize-none text-xs leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-500">
+                Teks ini akan menjadi isi default Syarat &amp; Ketentuan pada faktur cetak di bawah jumlah terbilang. Anda tetap dapat mengeditnya secara khusus per invoice saat pembuatan faktur.
+              </p>
+            </div>
           </div>
 
           {isAdmin && (

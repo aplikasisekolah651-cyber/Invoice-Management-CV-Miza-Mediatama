@@ -21,6 +21,7 @@ import {
   formatRupiah,
   formatIndonesianDate,
   formatShortDate,
+  numberToTerbilang,
 } from '../../services/calculation';
 import { StatusBadge } from '../common/Badge';
 import { initialCompany } from '../../services/initialData';
@@ -157,6 +158,16 @@ export const InvoiceDetailView: React.FC<InvoiceDetailViewProps> = ({
           <div className="text-[11px] text-slate-500 mt-0.5">
             Jatuh tempo: <span className="font-semibold">{formatShortDate(invoice.dueDate)}</span>
           </div>
+        </div>
+      </div>
+
+      {/* Terbilang Box */}
+      <div className="bg-slate-50 rounded-2xl border border-slate-200/90 p-4 px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          Jumlah Terbilang:
+        </div>
+        <div className="font-bold italic text-slate-800 text-sm">
+          # {invoice.grandTotal !== undefined ? `${numberToTerbilang(invoice.grandTotal)} Rupiah` : (invoice.terbilang || 'Nol Rupiah')} #
         </div>
       </div>
 

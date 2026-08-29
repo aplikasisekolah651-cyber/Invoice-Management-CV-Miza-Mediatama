@@ -208,15 +208,26 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
     editInvoice?.bankAccountId ||
       (company.bankAccounts.find((b) => b.isDefault)?.id || company.bankAccounts[0]?.id || '')
   );
+  const [showPaymentInfo, setShowPaymentInfo] = useState<boolean>(
+    editInvoice?.showPaymentInfo !== undefined
+      ? editInvoice.showPaymentInfo
+      : (invoiceSetting?.showPaymentInfo ?? true)
+  );
 
   const [signatoryCustomerName, setSignatoryCustomerName] = useState<string>(
     editInvoice?.signatoryCustomerName || ''
   );
   const [signatorySalesName, setSignatorySalesName] = useState<string>(
-    editInvoice?.signatorySalesName || invoiceSetting.defaultSignatorySalesName || ''
+    editInvoice?.signatorySalesName || invoiceSetting.defaultSignatorySalesName || salesList[0]?.name || currentUser?.name || ''
+  );
+  const [signatoryWarehouseName, setSignatoryWarehouseName] = useState<string>(
+    editInvoice?.signatoryWarehouseName || 'Bagian Logistik / Gudang'
   );
   const [signatoryFinanceName, setSignatoryFinanceName] = useState<string>(
-    editInvoice?.signatoryFinanceName || invoiceSetting.defaultSignatoryFinanceName || ''
+    editInvoice?.signatoryFinanceName || invoiceSetting.defaultSignatoryFinanceName || 'Bagian Keuangan'
+  );
+  const [signatoryAdminName, setSignatoryAdminName] = useState<string>(
+    editInvoice?.signatoryAdminName || company.directorName || 'Ahmad Miza, S.T.'
   );
 
   // Error validation states
@@ -243,6 +254,13 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       setSignatoryCustomerName(currentCustomer.name || currentCustomer.companyName);
     }
   }, [currentCustomer]);
+
+  // Auto-fill signatory marketing/operator name when sales changes (for new invoice)
+  useEffect(() => {
+    if (currentSales && !isEditing && (!signatorySalesName || signatorySalesName === invoiceSetting.defaultSignatorySalesName)) {
+      setSignatorySalesName(currentSales.name);
+    }
+  }, [currentSales]);
 
   // Set Quick Invoice Date Presets
   const setQuickInvoiceDate = (type: 'today' | 'yesterday' | 'month_start') => {
@@ -517,9 +535,12 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
       terms,
       bankAccountId,
       bankAccountSnapshot: currentBank,
+      showPaymentInfo,
       signatoryCustomerName: signatoryCustomerName || currentCustomer.name,
-      signatorySalesName: signatorySalesName || currentSales?.name,
-      signatoryFinanceName: signatoryFinanceName || 'Pimpinan Keuangan',
+      signatorySalesName: signatorySalesName || currentSales?.name || currentUser.name || 'Marketing',
+      signatoryWarehouseName: signatoryWarehouseName || 'Bagian Logistik / Gudang',
+      signatoryFinanceName: signatoryFinanceName || 'Bagian Keuangan',
+      signatoryAdminName: signatoryAdminName || company.directorName || 'Ahmad Miza, S.T.',
       status: editInvoice?.status === 'paid' || editInvoice?.status === 'partial' ? editInvoice.status : statusTarget,
       createdAt: editInvoice?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1043,11 +1064,20 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
         <div className="lg:col-span-7 space-y-4">
           {/* Bank Payment Account Box */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm">
                 <CreditCard className="w-4 h-4 text-blue-600" />
                 <span>Instruksi Rekening Pembayaran Resmi</span>
               </div>
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/70 px-2.5 py-1 rounded-lg transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showPaymentInfo}
+                  onChange={(e) => setShowPaymentInfo(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Tampilkan di Invoice Cetak</span>
+              </label>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1066,11 +1096,25 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
                     </option>
                   ))}
                 </select>
+                {!showPaymentInfo && (
+                  <p className="text-[10.5px] text-amber-600 mt-1 font-medium">
+                    ⚠️ Info transfer rekening ini disembunyikan pada cetakan invoice.
+                  </p>
+                )}
               </div>
 
               {currentBank && (
-                <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-[11px]">
-                  <div className="font-bold text-blue-900">{currentBank.bankName}</div>
+                <div className={`p-3 rounded-xl border text-[11px] transition-all ${
+                  showPaymentInfo ? 'bg-blue-50/60 border-blue-100' : 'bg-slate-50 border-slate-200 opacity-60'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-blue-900">{currentBank.bankName}</div>
+                    {!showPaymentInfo && (
+                      <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">
+                        Disembunyikan
+                      </span>
+                    )}
+                  </div>
                   <div className="font-mono text-sm font-bold text-blue-800 tracking-wide mt-0.5">
                     {currentBank.accountNumber}
                   </div>
@@ -1096,60 +1140,89 @@ export const InvoiceFormView: React.FC<InvoiceFormViewProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                Syarat & Ketentuan (Terms & Conditions)
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                <label className="block font-semibold text-slate-800">
+                  Syarat &amp; Ketentuan (Terms &amp; Conditions)
+                </label>
+                <div className="flex items-center gap-2 text-[10.5px]">
+                  {invoiceSetting?.defaultTerms && (
+                    <button
+                      type="button"
+                      onClick={() => setTerms(invoiceSetting.defaultTerms)}
+                      className="text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer"
+                      title="Kembalikan ke isi Default Pengaturan"
+                    >
+                      ↺ Muat Default Pengaturan
+                    </button>
+                  )}
+                </div>
+              </div>
               <textarea
                 rows={3}
                 value={terms}
                 onChange={(e) => setTerms(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-slate-600"
+                placeholder="Tuliskan syarat & ketentuan pembayaran untuk faktur ini..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-slate-700 leading-relaxed"
               />
             </div>
           </div>
 
           {/* Signatures Setup Box */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="font-bold text-slate-900 text-xs sm:text-sm pb-2 border-b border-slate-100">
-              Nama Pejabat Penandatangan Dokumen Invoice
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                Nama Penandatangan Dokumen Invoice (PENERIMA & MARKETING)
+              </div>
+              <span className="text-[10px] text-slate-500 font-medium">Tercetak rapi di bawah Syarat & Ketentuan</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  1. {invoiceSetting.signatoryCustomerTitle || 'Penerima / Pelanggan'}
+                  1. PENERIMA / Pelanggan
                 </label>
                 <input
                   type="text"
                   value={signatoryCustomerName}
                   onChange={(e) => setSignatoryCustomerName(e.target.value)}
-                  placeholder="Nama Penerima..."
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
+                  placeholder="Nama Penerima (contoh: Nama Pelanggan / PIC)..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  2. {invoiceSetting.signatorySalesTitle || 'Hormat Kami (Sales)'}
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    2. MARKETING (Nama Sales)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {currentSales && (
+                      <button
+                        type="button"
+                        onClick={() => setSignatorySalesName(currentSales.name)}
+                        className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                        title="Gunakan nama Sales yang bertugas"
+                      >
+                        Sales: {currentSales.name}
+                      </button>
+                    )}
+                    {currentUser?.name && (
+                      <button
+                        type="button"
+                        onClick={() => setSignatorySalesName(currentUser.name)}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                        title="Gunakan nama Operator yang sedang login"
+                      >
+                        Operator: {currentUser.name.split(' ')[0]}
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <input
                   type="text"
                   value={signatorySalesName}
                   onChange={(e) => setSignatorySalesName(e.target.value)}
-                  placeholder="Nama Sales..."
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  3. {invoiceSetting.signatoryFinanceTitle || 'Mengetahui (Pimpinan)'}
-                </label>
-                <input
-                  type="text"
-                  value={signatoryFinanceName}
-                  onChange={(e) => setSignatoryFinanceName(e.target.value)}
-                  placeholder="Nama Pimpinan/Direktur..."
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
+                  placeholder={`Nama Sales / Marketing (contoh: ${currentSales?.name || 'Budi Prasetyo'})...`}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none"
                 />
               </div>
             </div>

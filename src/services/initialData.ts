@@ -78,6 +78,7 @@ export const initialInvoiceSetting: InvoiceSetting = {
   signatoryFinanceTitle: 'Mengetahui (Pimpinan / Keuangan)',
   defaultSignatorySalesName: 'Budi Prasetyo, S.Kom',
   defaultSignatoryFinanceName: 'Ahmad Miza, S.T.',
+  showPaymentInfo: true,
 };
 
 export const initialUsers: User[] = [
