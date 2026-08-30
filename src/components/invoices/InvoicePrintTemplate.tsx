@@ -53,64 +53,64 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
 }) => {
   return (
     <div
-      className={`w-full bg-white text-slate-900 font-sans relative ${
-        isCompact ? 'p-3.5 sm:p-5' : 'p-6 sm:p-8'
+      className={`w-full bg-white text-black font-sans relative ${
+        isCompact ? 'p-3 sm:p-4.5' : 'p-6 sm:p-8'
       }`}
       style={{ boxSizing: 'border-box' }}
     >
       {/* 1. HEADER: COMPANY IDENTITY (LEFT) & INVOICE META / RECIPIENT (RIGHT) */}
-      <div className="grid grid-cols-2 gap-4 items-start border-b-2 border-slate-900 pb-2.5">
-        {/* Left Column (50%): Company Identity */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 items-start border-b-2 border-black pb-2 sm:pb-2.5">
+        {/* Left Column (50%): Company Identity (Enlarged & Crisp Solid Black) */}
         <div className="pr-1">
           <div className="flex items-center gap-2.5">
             {company.logoUrl ? (
               <img
                 src={company.logoUrl}
                 alt={company.name}
-                className="max-h-11 max-w-[110px] w-auto h-auto object-contain shrink-0"
+                className="max-h-12 max-w-[125px] w-auto h-auto object-contain shrink-0"
               />
             ) : (
-              <MizaLogoIcon className="h-9 w-auto shrink-0" />
+              <MizaLogoIcon className="h-10 w-auto shrink-0" />
             )}
             <div className="min-w-0">
-              <h1 className="text-[16px] sm:text-[17px] font-black tracking-tight leading-none uppercase font-sans">
+              <h1 className="text-[17px] sm:text-[19px] font-black tracking-tight leading-none uppercase font-sans text-black">
                 {company.name?.toUpperCase().includes('MIZA') ? (
                   <>
-                    <span className="text-black">CV.</span>
-                    <span className="text-[#00AEEF]">MIZA</span>{' '}
+                    <span className="text-black">CV. </span>
+                    <span className="text-[#00AEEF] font-black">MIZA</span>{' '}
                     <span className="text-black">MEDIATAMA</span>
                   </>
                 ) : (
-                  <span className="text-slate-900">{company.name}</span>
+                  <span className="text-black">{company.name}</span>
                 )}
               </h1>
-              <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-700 tracking-wider uppercase leading-tight mt-1">
+              <p className="text-[10px] sm:text-[11px] font-black text-black tracking-wider uppercase leading-tight mt-1">
                 {companySlogan}
               </p>
             </div>
           </div>
 
-          <div className="text-[10px] sm:text-[10.5px] text-slate-600 leading-snug space-y-0.5 mt-1.5">
-            <p className="line-clamp-2">
+          <div className="text-[11px] sm:text-[11.5px] text-black font-semibold leading-snug space-y-0.5 mt-1.5">
+            <p className="line-clamp-2 text-black">
               {company.address} {company.rtRw ? `${company.rtRw}, ` : ''}
               {company.village ? `${company.village}, ` : ''}
               {company.district ? `${company.district}, ` : ''}
               {company.city}, {company.province} {company.postalCode}
             </p>
-            <div className="flex flex-wrap gap-x-3 text-slate-700">
+            <div className="flex flex-wrap gap-x-3 text-black font-bold">
               <span>
-                <strong className="text-slate-900 font-semibold">NPWP:</strong> {company.npwp || '-'}
+                <strong className="text-black font-black">NPWP:</strong> {company.npwp || '-'}
               </span>
               <span>
-                <strong className="text-slate-900 font-semibold">Telp/WA:</strong> {company.phone}
+                <strong className="text-black font-black">Telp/WA:</strong> {company.phone}
               </span>
             </div>
             {company.email && (
-              <p className="text-slate-500 truncate text-[9.5px] sm:text-[10px]">
+              <p className="text-black font-medium truncate text-[10px] sm:text-[10.5px]">
                 <span>{company.email}</span>
                 {company.website && (
                   <>
-                    <span className="mx-1">•</span>
+                    <span className="mx-1 font-bold">•</span>
                     <span>{company.website}</span>
                   </>
                 )}
@@ -123,42 +123,42 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
         <div className="pl-1">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <div className="inline-block bg-slate-900 text-white px-2.5 py-1 rounded text-xs sm:text-[13px] font-black tracking-wider uppercase leading-none shadow-2xs">
+              <div className="inline-block bg-black text-white px-2.5 py-1 rounded text-[12px] sm:text-[13.5px] font-black tracking-wider uppercase leading-none shadow-xs">
                 NOTA PENJUALAN
               </div>
               {copyLabel && (
-                <span className="text-[8.5px] sm:text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 uppercase">
+                <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded bg-slate-100 text-black border border-slate-400 uppercase">
                   {copyLabel}
                 </span>
               )}
             </div>
             <div className="text-right">
-              <div className="text-xs sm:text-[13px] font-black text-blue-950 font-mono bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block shadow-2xs">
+              <div className="text-[12.5px] sm:text-[14px] font-black text-black font-mono bg-slate-100 px-2.5 py-0.5 rounded border border-slate-400 inline-block shadow-2xs">
                 {invoice.invoiceNumber}
               </div>
             </div>
           </div>
 
           {/* Date & PO Meta */}
-          <div className="mt-1.5 flex flex-wrap justify-between items-center text-[10px] sm:text-[10.5px] text-slate-700 leading-snug gap-x-2">
+          <div className="mt-1.5 flex flex-wrap justify-between items-center text-[11px] sm:text-[11.5px] text-black leading-snug gap-x-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-700 font-bold uppercase text-[9.5px] sm:text-[10px]">TANGGAL :</span>
-              <span className="text-xs sm:text-[12.5px] font-bold text-slate-900 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-300 inline-block shadow-2xs">
+              <span className="text-black font-black uppercase text-[10px] sm:text-[11px]">TANGGAL :</span>
+              <span className="text-[12px] sm:text-[13px] font-black text-black font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-400 inline-block shadow-2xs">
                 {formatShortDate(invoice.invoiceDate)}
               </span>
             </div>
             {invoice.poNumber && (
               <div className="flex items-center gap-1">
-                <span className="text-slate-500 text-[9px] uppercase font-bold">PO:</span>
-                <span className="text-slate-800 font-semibold text-[10px] bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                <span className="text-black text-[10px] uppercase font-black">PO:</span>
+                <span className="text-black font-bold text-[11px] bg-slate-50 px-1.5 py-0.5 rounded border border-slate-300 font-mono">
                   {invoice.poNumber}
                 </span>
               </div>
             )}
             {invoice.deliveryDate && (
               <div className="flex items-center gap-1">
-                <span className="text-slate-500 text-[9px] uppercase font-bold">Kirim:</span>
-                <span className="text-slate-800 font-medium font-mono text-[10px] bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                <span className="text-black text-[10px] uppercase font-black">Kirim:</span>
+                <span className="text-black font-bold font-mono text-[11px] bg-slate-50 px-1.5 py-0.5 rounded border border-slate-300">
                   {formatShortDate(invoice.deliveryDate)}
                 </span>
               </div>
@@ -166,20 +166,20 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
           </div>
 
           {/* KEPADA Section */}
-          <div className="mt-1.5 bg-slate-50/90 p-2 rounded-lg border border-slate-200 text-left">
-            <div className="text-[8.5px] sm:text-[9px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-              <span className="font-extrabold text-slate-800">KEPADA YTH:</span>
+          <div className="mt-1.5 bg-slate-50 p-2 rounded-lg border border-slate-300 text-left">
+            <div className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-black flex items-center justify-between">
+              <span>KEPADA YTH:</span>
             </div>
-            <div className="text-[11.5px] sm:text-[12.5px] font-black text-slate-900 leading-tight mt-0.5 truncate">
+            <div className="text-[13px] sm:text-[14.5px] font-black text-black leading-tight mt-0.5 truncate">
               {invoice.customerSnapshot?.companyName || invoice.customerSnapshot?.name}
             </div>
             {(invoice.customerSnapshot?.name || invoice.customerSnapshot?.contactPerson) && (
-              <div className="text-slate-700 font-semibold text-[9.5px] sm:text-[10px] leading-tight truncate">
+              <div className="text-black font-bold text-[10.5px] sm:text-[11.5px] leading-tight truncate mt-0.5">
                 Attn : {invoice.customerSnapshot?.name || invoice.customerSnapshot?.contactPerson}
               </div>
             )}
             {invoice.customerSnapshot?.address && (
-              <div className="text-slate-600 text-[9.5px] sm:text-[10px] leading-snug mt-0.5 truncate">
+              <div className="text-black font-medium text-[10px] sm:text-[11px] leading-snug mt-0.5 truncate">
                 {invoice.customerSnapshot.address}
                 {invoice.customerSnapshot.city ? `, ${invoice.customerSnapshot.city}` : ''}
               </div>
@@ -188,58 +188,58 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
         </div>
       </div>
 
-      {/* 2. TABLE ITEM RINCIAN (Proportional Clear Font Size) */}
-      <div className="mt-2 overflow-hidden rounded border border-slate-300">
-        <table className="w-full text-left text-[10.5px] sm:text-[11px] border-collapse">
+      {/* 2. TABLE ITEM RINCIAN (Enlarged & Crisp Font Size) */}
+      <div className="mt-2 overflow-hidden rounded border border-slate-400">
+        <table className="w-full text-left text-[11px] sm:text-[11.5px] border-collapse">
           <thead>
-            <tr className="bg-slate-900 text-white font-bold uppercase text-[9px] sm:text-[9.5px] tracking-wider">
+            <tr className="bg-black text-white font-black uppercase text-[10px] sm:text-[10.5px] tracking-wider">
               <th className="py-1.5 px-2 w-7 text-center border-r border-slate-800">No</th>
               <th className="py-1.5 px-2 border-r border-slate-800">Deskripsi Barang &amp; Jasa Layanan</th>
-              <th className="py-1.5 px-1.5 w-11 text-center border-r border-slate-800">Qty</th>
+              <th className="py-1.5 px-1.5 w-12 text-center border-r border-slate-800">Qty</th>
               <th className="py-1.5 px-1.5 w-14 text-center border-r border-slate-800">Satuan</th>
               <th className="py-1.5 px-2 w-24 text-right border-r border-slate-800">Harga (Rp)</th>
               <th className="py-1.5 px-2 w-18 text-right border-r border-slate-800">Diskon</th>
               <th className="py-1.5 px-2 w-28 text-right">Total (Rp)</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-300">
             {invoice.items.map((item, idx) => (
               <tr
                 key={item.id}
-                className={`align-top ${idx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}
+                className={`align-top ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}
               >
-                <td className="py-1.5 px-2 text-center border-r border-slate-200 text-slate-500 font-medium">
+                <td className="py-1.5 px-2 text-center border-r border-slate-300 text-black font-bold">
                   {idx + 1}
                 </td>
-                <td className="py-1.5 px-2 border-r border-slate-200">
-                  <div className="font-bold text-slate-900 leading-tight text-[11px] sm:text-[11.5px]">
+                <td className="py-1.5 px-2 border-r border-slate-300">
+                  <div className="font-bold text-black leading-tight text-[11.5px] sm:text-[12.5px]">
                     {item.name}
                   </div>
                   {item.description && (
-                    <div className="text-[9.5px] sm:text-[10px] text-slate-500 whitespace-pre-line leading-tight mt-0.5">
+                    <div className="text-[10px] sm:text-[10.5px] text-slate-800 font-medium whitespace-pre-line leading-tight mt-0.5">
                       {item.description}
                     </div>
                   )}
                 </td>
-                <td className="py-1.5 px-1.5 text-center border-r border-slate-200 font-bold text-slate-800 font-mono">
+                <td className="py-1.5 px-1.5 text-center border-r border-slate-300 font-black text-black font-mono text-[11.5px] sm:text-[12px]">
                   {item.quantity}
                 </td>
-                <td className="py-1.5 px-1.5 text-center border-r border-slate-200 text-slate-600 text-[10px]">
+                <td className="py-1.5 px-1.5 text-center border-r border-slate-300 text-black font-semibold text-[10.5px] sm:text-[11px]">
                   {item.unit}
                 </td>
-                <td className="py-1.5 px-2 text-right border-r border-slate-200 font-mono text-slate-800">
+                <td className="py-1.5 px-2 text-right border-r border-slate-300 font-mono font-bold text-black text-[11px] sm:text-[11.5px]">
                   {formatRupiah(item.unitPrice, false)}
                 </td>
-                <td className="py-1.5 px-2 text-right border-r border-slate-200 text-slate-600 font-mono">
+                <td className="py-1.5 px-2 text-right border-r border-slate-300 text-black font-mono font-semibold text-[10.5px] sm:text-[11px]">
                   {item.discountAmount > 0 ? (
-                    <span className="text-rose-700 font-medium">
+                    <span className="text-rose-800 font-bold">
                       {formatRupiah(item.discountAmount, false)}
                     </span>
                   ) : (
                     '-'
                   )}
                 </td>
-                <td className="py-1.5 px-2 text-right font-bold font-mono text-slate-900 text-[11px] sm:text-[11.5px]">
+                <td className="py-1.5 px-2 text-right font-black font-mono text-black text-[12px] sm:text-[12.5px]">
                   {formatRupiah(item.totalPrice, false)}
                 </td>
               </tr>
@@ -249,91 +249,91 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
       </div>
 
       {/* 3. SUMMARY SECTION (Terbilang, Syarat & Ketentuan, Bank + Totals) */}
-      <div className="mt-2 flex justify-between items-start gap-3 border-t border-slate-200 pt-2">
+      <div className="mt-2 flex justify-between items-start gap-3 border-t-2 border-black pt-2">
         {/* Left Side (54%): Terbilang, Terms, Bank Info */}
         <div className="w-[54%] space-y-1.5">
           {/* Terbilang Box */}
-          <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 text-[9.5px]">
-            <div className="text-[8.5px] sm:text-[9px] font-extrabold uppercase tracking-wider text-slate-500 leading-none mb-0.5">
+          <div className="bg-slate-50 p-2 rounded-lg border border-slate-300 text-[10.5px]">
+            <div className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-black leading-none mb-0.5">
               JUMLAH TERBILANG:
             </div>
-            <div className="font-bold italic text-slate-900 leading-snug text-[10.5px] sm:text-[11px]">
+            <div className="font-bold italic text-black leading-snug text-[11.5px] sm:text-[12px]">
               # {invoice.grandTotal !== undefined ? `${numberToTerbilang(invoice.grandTotal)} Rupiah` : (invoice.terbilang || 'Nol Rupiah')} #
             </div>
           </div>
 
           {/* Syarat & Ketentuan (Tepat mepet di bawah Jumlah Terbilang) */}
           {invoice.terms && (
-            <div className="bg-slate-50/80 p-2 rounded-lg border border-slate-200/80 text-[9px] sm:text-[9.5px] text-slate-700 leading-snug">
-              <div className="font-bold text-slate-900 uppercase text-[8.5px] sm:text-[9px] mb-0.5">
+            <div className="bg-slate-50/90 p-2 rounded-lg border border-slate-300 text-[10px] sm:text-[10.5px] text-black leading-snug">
+              <div className="font-black text-black uppercase text-[9px] sm:text-[9.5px] mb-0.5">
                 Syarat &amp; Ketentuan:
               </div>
-              <div className="whitespace-pre-line leading-snug">{invoice.terms}</div>
+              <div className="whitespace-pre-line leading-snug font-medium">{invoice.terms}</div>
             </div>
           )}
 
           {/* Bank Account Transfer Info */}
           {invoice.showPaymentInfo !== false && currentBank && (
-            <div className="p-2 bg-blue-50/70 rounded-lg border border-blue-200 text-[9.5px] space-y-0.5 text-slate-700">
-              <div className="flex items-center justify-between border-b border-blue-200/80 pb-1 mb-1">
-                <span className="font-bold text-blue-950 uppercase text-[8.5px] sm:text-[9px] flex items-center gap-1.5">
-                  <CreditCard className="w-3 h-3 text-blue-700" />
+            <div className="p-2 bg-blue-50/80 rounded-lg border border-blue-300 text-[10px] sm:text-[10.5px] space-y-0.5 text-black">
+              <div className="flex items-center justify-between border-b border-blue-200 pb-1 mb-1">
+                <span className="font-black text-black uppercase text-[9.5px] sm:text-[10px] flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-blue-800" />
                   <span>PEMBAYARAN TRANSFER</span>
                 </span>
-                <span className="text-[8px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
+                <span className="text-[8.5px] font-bold bg-blue-100 text-blue-900 px-1.5 py-0.2 rounded border border-blue-200">
                   Rekening Resmi
                 </span>
               </div>
               <div className="flex items-center justify-between gap-1 leading-tight">
-                <span className="font-bold text-slate-900 text-[10px] sm:text-[10.5px]">
+                <span className="font-bold text-black text-[11px] sm:text-[11.5px]">
                   {currentBank.bankName} {currentBank.branch ? `(${currentBank.branch})` : ''}
                 </span>
-                <span className="font-black font-mono text-[11px] sm:text-[11.5px] text-blue-950">
+                <span className="font-black font-mono text-[12px] sm:text-[13px] text-black">
                   {currentBank.accountNumber}
                 </span>
               </div>
-              <div className="text-slate-600 text-[9px] sm:text-[9.5px] leading-tight">
-                A.N. <strong className="text-slate-900 font-semibold">{currentBank.accountHolder}</strong>
+              <div className="text-black font-medium text-[10px] sm:text-[10.5px] leading-tight">
+                A.N. <strong className="text-black font-black">{currentBank.accountHolder}</strong>
               </div>
             </div>
           )}
         </div>
 
         {/* Right Side (44%): Totals Calculation Table */}
-        <div className="w-[44%] text-[10.5px] sm:text-[11px]">
+        <div className="w-[44%] text-[11px] sm:text-[11.5px]">
           <table className="w-full text-right leading-tight">
             <tbody>
               <tr>
-                <td className="text-slate-600 py-0.5 font-medium">
+                <td className="text-black py-0.5 font-bold">
                   {invoice.taxCalculationType === 'inclusive' && invoice.isPpnActive
                     ? 'Subtotal (Inc. PPN):'
                     : 'Subtotal Produk/Jasa:'}
                 </td>
-                <td className="font-bold font-mono text-slate-900 py-0.5">
+                <td className="font-black font-mono text-black py-0.5 text-[11.5px] sm:text-[12px]">
                   {formatRupiah(invoice.subtotal)}
                 </td>
               </tr>
               {invoice.invoiceDiscountAmount > 0 && (
                 <tr>
-                  <td className="text-rose-700 py-0.5 font-medium">Diskon Faktur:</td>
-                  <td className="font-bold font-mono text-rose-700 py-0.5">
+                  <td className="text-rose-800 py-0.5 font-bold">Diskon Faktur:</td>
+                  <td className="font-black font-mono text-rose-800 py-0.5 text-[11.5px] sm:text-[12px]">
                     - {formatRupiah(invoice.invoiceDiscountAmount)}
                   </td>
                 </tr>
               )}
               {invoice.isPpnActive && (
                 <>
-                  <tr className="border-t border-slate-100">
-                    <td className="text-slate-500 py-0.5 text-[9px] sm:text-[9.5px]">DPP:</td>
-                    <td className="font-medium font-mono text-slate-700 py-0.5 text-[9px] sm:text-[9.5px]">
+                  <tr className="border-t border-slate-200">
+                    <td className="text-black py-0.5 text-[10px] sm:text-[10.5px] font-semibold">DPP:</td>
+                    <td className="font-bold font-mono text-black py-0.5 text-[10px] sm:text-[10.5px]">
                       {formatRupiah(invoice.taxableBase)}
                     </td>
                   </tr>
                   <tr>
-                    <td className="text-slate-700 py-0.5 font-medium">
+                    <td className="text-black py-0.5 font-bold">
                       PPN ({invoice.ppnRate}%){invoice.taxCalculationType === 'inclusive' ? ' (Inc)' : ''}:
                     </td>
-                    <td className="font-bold font-mono text-slate-900 py-0.5">
+                    <td className="font-black font-mono text-black py-0.5 text-[11.5px] sm:text-[12px]">
                       {formatRupiah(invoice.ppnAmount)}
                     </td>
                   </tr>
@@ -341,17 +341,17 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
               )}
               {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
                 <tr>
-                  <td className="text-slate-600 py-0.5 font-medium">Bea Materai:</td>
-                  <td className="font-bold font-mono text-slate-900 py-0.5">
+                  <td className="text-black py-0.5 font-bold">Bea Materai:</td>
+                  <td className="font-black font-mono text-black py-0.5 text-[11.5px] sm:text-[12px]">
                     {formatRupiah(invoice.materaiAmount)}
                   </td>
                 </tr>
               )}
-              <tr className="border-t-2 border-slate-900 bg-slate-900 text-white">
-                <td className="py-1 px-2 text-[10px] sm:text-[10.5px] font-black uppercase text-left rounded-l">
+              <tr className="border-t-2 border-black bg-black text-white">
+                <td className="py-1.5 px-2 text-[11px] sm:text-[12px] font-black uppercase text-left rounded-l">
                   TOTAL TAGIHAN:
                 </td>
-                <td className="py-1 px-2 text-xs sm:text-[13px] font-black font-mono text-right rounded-r">
+                <td className="py-1.5 px-2 text-[13.5px] sm:text-[15px] font-black font-mono text-right rounded-r">
                   {formatRupiah(invoice.grandTotal)}
                 </td>
               </tr>
@@ -361,38 +361,38 @@ const SingleInvoiceSlip: React.FC<SingleSlipProps> = ({
       </div>
 
       {/* 4. COMPACT SIGNATURES: 2 SIGNATORIES (PENERIMA & HORMAT KAMI) */}
-      <div className="mt-2.5 pt-1.5 border-t border-slate-200 text-center text-[10px]">
+      <div className="mt-2.5 pt-1.5 border-t border-slate-300 text-center text-[10.5px]">
         <div className="flex justify-between items-start px-4 sm:px-10">
           {/* 1. Signatory: Customer / Penerima */}
           <div className="w-36 sm:w-48 flex flex-col items-center">
-            <div className="text-slate-800 font-bold text-[10px] sm:text-[10.5px] uppercase tracking-wide">
+            <div className="text-black font-black text-[11px] sm:text-[11.5px] uppercase tracking-wide">
               PENERIMA,
             </div>
             <div className="h-10 sm:h-12 flex items-end justify-center w-full">
-              <div className="border-b border-slate-400 w-32 sm:w-40" />
+              <div className="border-b-2 border-black w-32 sm:w-40" />
             </div>
             <div className="mt-1 text-center w-full">
-              <div className="font-bold text-slate-900 truncate px-0.5 text-[10.5px] sm:text-[11px]">
-                ( {invoice.signatoryCustomerName || invoice.customerSnapshot?.contactPerson || invoice.customerSnapshot?.name || '................................'} )
+              <div className="font-black text-black truncate px-0.5 text-[11.5px] sm:text-[12.5px]">
+                ( {invoice.signatoryCustomerName || invoice.customerSnapshot?.name || invoice.customerSnapshot?.contactPerson || '................................'} )
               </div>
             </div>
           </div>
 
           {/* 2. Signatory: HORMAT KAMI (Filled with Sales / Company sender name) */}
           <div className="w-36 sm:w-48 flex flex-col items-center">
-            <div className="text-slate-800 font-bold text-[10px] sm:text-[10.5px] uppercase tracking-wide">
+            <div className="text-black font-black text-[11px] sm:text-[11.5px] uppercase tracking-wide">
               HORMAT KAMI,
             </div>
             <div className="h-10 sm:h-12 flex items-center justify-center relative w-full">
               {invoice.isMateraiActive && invoice.materaiAmount > 0 && (
-                <div className="border border-dashed border-slate-300 text-[8px] text-slate-500 px-2 py-0.5 rounded leading-none mb-1">
+                <div className="border border-dashed border-slate-400 text-[8.5px] text-black font-bold px-2 py-0.5 rounded leading-none mb-1">
                   Materai Rp 10.000
                 </div>
               )}
-              <div className="border-b border-slate-400 w-32 sm:w-40 absolute bottom-0" />
+              <div className="border-b-2 border-black w-32 sm:w-40 absolute bottom-0" />
             </div>
             <div className="mt-1 text-center w-full">
-              <div className="font-bold text-slate-900 truncate px-0.5 text-[10.5px] sm:text-[11px]">
+              <div className="font-black text-black truncate px-0.5 text-[11.5px] sm:text-[12.5px]">
                 ( {invoice.salesSnapshot?.name || invoice.signatorySalesName || invoice.createdByName || '................................'} )
               </div>
             </div>

@@ -211,16 +211,17 @@ export const ExportService = {
     const data = customers.map((c, idx) => ({
       No: idx + 1,
       'Kode Pelanggan': c.code,
-      'Nama Kontak': c.name,
-      'Nama Perusahaan': c.companyName,
+      'Nama Sekolah / Instansi': c.companyName || c.name,
+      'Nama Kontak Person': c.name || c.contactPerson || '',
+      'Jabatan / Bagian': c.contactPerson || '',
       Alamat: c.address,
-      Kota: c.city,
+      'Kota / Kabupaten': c.city,
       Provinsi: c.province,
       'Kode Pos': c.postalCode || '',
-      NPWP: c.npwp || '',
-      Telepon: c.phone,
+      'Telepon / WA': c.phone,
       Email: c.email || '',
-      'Kontak Person': c.contactPerson || '',
+      NPWP: c.npwp || '',
+      NIK: c.nik || '',
       Catatan: c.notes || '',
       Status: c.isActive ? 'Aktif' : 'Non-Aktif',
     }));
@@ -238,13 +239,15 @@ export const ExportService = {
     const data = products.map((p, idx) => ({
       No: idx + 1,
       'Kode Barang': p.code,
-      SKU: p.sku || '',
+      'SKU / Barcode': p.sku || '',
       'Nama Barang': p.name,
-      Kategori: p.categoryName || '',
+      Kategori: p.categoryName || p.category || '',
       Satuan: p.unit,
-      'Harga Beli': p.costPrice,
+      'Harga Beli / Modal (HPP)': p.costPrice,
       'Harga Jual': p.sellingPrice,
-      Deskripsi: p.description || '',
+      'Stok Awal': p.stock !== undefined ? p.stock : 0,
+      'Min Stok': p.minStock !== undefined ? p.minStock : 5,
+      'Deskripsi / Spesifikasi': p.description || '',
       Status: p.isActive ? 'Aktif' : 'Non-Aktif',
     }));
 
@@ -261,31 +264,48 @@ export const ExportService = {
     const sampleData = [
       {
         'Kode Pelanggan': 'CUST-001',
-        'Nama Kontak': 'Drs. H. Ahmad Fauzi, M.Pd.',
-        'Nama Perusahaan': 'SMK Negeri 2 Bantul',
-        Alamat: 'Jl. Imogiri Barat Km. 7, Bangunharjo',
-        Kota: 'Bantul',
+        'Nama Sekolah / Instansi': 'SMP Negeri 1 Bantul',
+        'Nama Kontak Person': 'Drs. H. Ahmad Fauzi, M.Pd.',
+        'Jabatan / Bagian': 'Kepala Sekolah',
+        Alamat: 'Jl. RA Kartini No. 4, Trirenggo',
+        'Kota / Kabupaten': 'Bantul',
         Provinsi: 'D.I. Yogyakarta',
-        'Kode Pos': '55187',
+        'Kode Pos': '55714',
+        'Telepon / WA': '081234567890',
+        Email: 'smpn1bantul@sekolah.id',
         NPWP: '00.123.456.7-543.000',
-        Telepon: '081234567890',
-        Email: 'smkn2bantul@gmail.com',
-        'Kontak Person': 'Pak Ahmad Fauzi (Kepala Sekolah)',
-        Catatan: 'Instansi Pendidikan Negeri / SIPLah',
+        NIK: '3402010101800001',
+        Catatan: 'Instansi Pendidikan Negeri / SIPLah BOS',
       },
       {
         'Kode Pelanggan': 'CUST-002',
-        'Nama Kontak': 'Ir. Hendra Setiawan',
-        'Nama Perusahaan': 'PT. Global Indo Prima',
+        'Nama Sekolah / Instansi': 'SMK Negeri 2 Sewon',
+        'Nama Kontak Person': 'Ir. Hendra Setiawan',
+        'Jabatan / Bagian': 'Kepala Sarpras',
+        Alamat: 'Jl. Imogiri Barat Km. 7',
+        'Kota / Kabupaten': 'Bantul',
+        Provinsi: 'D.I. Yogyakarta',
+        'Kode Pos': '55187',
+        'Telepon / WA': '085712349988',
+        Email: 'sarpras.smkn2sewon@sch.id',
+        NPWP: '01.987.654.3-541.000',
+        NIK: '',
+        Catatan: 'Pengadaan Lab Komputer & Multimedia',
+      },
+      {
+        'Kode Pelanggan': 'CUST-003',
+        'Nama Sekolah / Instansi': 'PT. Global Indo Prima',
+        'Nama Kontak Person': 'Ibu Maya Anggraini',
+        'Jabatan / Bagian': 'Divisi Pengadaan & Logistik',
         Alamat: 'Jl. Ringroad Timur No. 88',
-        Kota: 'Sleman',
+        'Kota / Kabupaten': 'Sleman',
         Provinsi: 'D.I. Yogyakarta',
         'Kode Pos': '55281',
-        NPWP: '01.987.654.3-541.000',
-        Telepon: '085712349988',
+        'Telepon / WA': '087812998877',
         Email: 'procurement@globalindoprima.co.id',
-        'Kontak Person': 'Ibu Maya (Divisi Pengadaan)',
-        Catatan: 'Mitra Perusahaan Swasta B2B Term of Payment 30 hari',
+        NPWP: '02.456.789.0-542.000',
+        NIK: '',
+        Catatan: 'Mitra Perusahaan Swasta B2B TOP 30 hari',
       },
     ];
 
@@ -307,33 +327,39 @@ export const ExportService = {
     const sampleData = [
       {
         'Kode Barang': 'PRD-001',
-        SKU: 'LAP-ASUS-I5',
+        'SKU / Barcode': 'LAP-ASUS-I5',
         'Nama Barang': 'Laptop ASUS ExpertBook B1400 (Core i5 16GB SSD 512GB)',
         Kategori: 'Komputer & IT',
         Satuan: 'Unit',
-        'Harga Beli': 8500000,
+        'Harga Beli / Modal (HPP)': 8500000,
         'Harga Jual': 10250000,
-        Deskripsi: 'Garansi resmi 2 tahun, bonus tas laptop & mouse optik',
+        'Stok Awal': 15,
+        'Min Stok': 3,
+        'Deskripsi / Spesifikasi': 'Garansi resmi 2 tahun, bonus tas laptop & mouse optik',
       },
       {
         'Kode Barang': 'PRD-002',
-        'SKU': 'PRT-EPSON-L3210',
+        'SKU / Barcode': 'PRT-EPSON-L3210',
         'Nama Barang': 'Printer Epson EcoTank L3210 All-in-One Ink Tank',
         Kategori: 'Hardware & Percetakan',
         Satuan: 'Unit',
-        'Harga Beli': 2100000,
+        'Harga Beli / Modal (HPP)': 2100000,
         'Harga Jual': 2550000,
-        Deskripsi: 'Print, Scan, Copy. Termasuk tinta original set',
+        'Stok Awal': 20,
+        'Min Stok': 5,
+        'Deskripsi / Spesifikasi': 'Print, Scan, Copy. Termasuk tinta original set 4 warna',
       },
       {
         'Kode Barang': 'PRD-003',
-        SKU: 'PPR-A4-75G',
+        'SKU / Barcode': 'PPR-A4-75G',
         'Nama Barang': 'Kertas HVS PaperOne A4 75 Gsm (1 Box / 5 Rim)',
         Kategori: 'ATK & Kertas',
         Satuan: 'Box',
-        'Harga Beli': 185000,
+        'Harga Beli / Modal (HPP)': 185000,
         'Harga Jual': 225000,
-        Deskripsi: 'Kertas putih bersih presisi tinggi untuk fotokopi & kantor',
+        'Stok Awal': 50,
+        'Min Stok': 10,
+        'Deskripsi / Spesifikasi': 'Kertas putih bersih presisi tinggi untuk fotokopi & kantor',
       },
     ];
 
@@ -364,23 +390,59 @@ export const ExportService = {
           const worksheet = workbook.Sheets[firstSheetName];
           const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-          const parsed: Partial<Customer>[] = rawRows.map((row, i) => ({
-            code: row['Kode Pelanggan'] || row['Kode'] || `CUST-${String(i + 10).padStart(3, '0')}`,
-            name: row['Nama Kontak'] || row['Nama'] || row['Nama Pelanggan'] || '',
-            companyName: row['Nama Perusahaan'] || row['Perusahaan'] || row['Nama'] || '',
-            address: row['Alamat'] || '',
-            city: row['Kota'] || 'Yogyakarta',
-            province: row['Provinsi'] || 'D.I. Yogyakarta',
-            postalCode: String(row['Kode Pos'] || ''),
-            npwp: String(row['NPWP'] || ''),
-            phone: String(row['Telepon'] || row['No Telp'] || row['Phone'] || ''),
-            email: row['Email'] || '',
-            contactPerson: row['Kontak Person'] || '',
-            notes: row['Catatan'] || '',
-            isActive: true,
-          }));
+          const parsed: Partial<Customer>[] = rawRows.map((row, i) => {
+            const companyName =
+              row['Nama Sekolah / Instansi'] ||
+              row['Nama Sekolah'] ||
+              row['Nama Instansi'] ||
+              row['Nama Perusahaan'] ||
+              row['Perusahaan'] ||
+              row['Instansi'] ||
+              '';
+            const contactName =
+              row['Nama Kontak Person'] ||
+              row['Nama Kontak'] ||
+              row['Nama PIC'] ||
+              row['Nama Lengkap Kontak'] ||
+              row['Nama Pelanggan'] ||
+              row['Nama'] ||
+              '';
+            const position =
+              row['Jabatan / Bagian'] ||
+              row['Jabatan'] ||
+              row['Bagian'] ||
+              row['Kontak Person'] ||
+              row['Keterangan Kontak'] ||
+              '';
 
-          resolve(parsed.filter((p) => p.name || p.companyName));
+            return {
+              code: String(
+                row['Kode Pelanggan'] || row['Kode'] || `CUST-${String(i + 10).padStart(3, '0')}`
+              ).trim(),
+              companyName: String(companyName || contactName || '').trim(),
+              name: String(contactName || companyName || '').trim(),
+              contactPerson: String(position || '').trim(),
+              address: String(row['Alamat'] || row['Alamat Lengkap'] || '').trim(),
+              city: String(row['Kota / Kabupaten'] || row['Kota'] || row['Kabupaten'] || 'Bantul').trim(),
+              province: String(row['Provinsi'] || 'D.I. Yogyakarta').trim(),
+              postalCode: String(row['Kode Pos'] || '').trim(),
+              npwp: String(row['NPWP'] || '').trim(),
+              nik: String(row['NIK'] || '').trim(),
+              phone: String(
+                row['Telepon / WA'] ||
+                  row['Telepon'] ||
+                  row['No Telp'] ||
+                  row['No HP'] ||
+                  row['Phone'] ||
+                  ''
+              ).trim(),
+              email: String(row['Email'] || '').trim(),
+              notes: String(row['Catatan'] || row['Keterangan'] || '').trim(),
+              isActive: true,
+            };
+          });
+
+          resolve(parsed.filter((p) => p.companyName || p.name));
         } catch (error) {
           reject(error);
         }
@@ -405,14 +467,32 @@ export const ExportService = {
           const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet);
 
           const parsed: Partial<Product>[] = rawRows.map((row, i) => ({
-            code: row['Kode Barang'] || row['Kode'] || `PRD-${String(i + 10).padStart(3, '0')}`,
-            sku: row['SKU'] || '',
-            name: row['Nama Barang'] || row['Nama'] || '',
-            categoryName: row['Kategori'] || 'Umum',
-            unit: row['Satuan'] || 'unit',
-            costPrice: Number(row['Harga Beli']) || 0,
-            sellingPrice: Number(row['Harga Jual'] || row['Harga']) || 0,
-            description: row['Deskripsi'] || '',
+            code: String(
+              row['Kode Barang'] || row['Kode'] || `PRD-${String(i + 10).padStart(3, '0')}`
+            ).trim(),
+            sku: String(row['SKU / Barcode'] || row['SKU'] || '').trim(),
+            name: String(row['Nama Barang'] || row['Nama Produk'] || row['Nama'] || '').trim(),
+            categoryName: String(row['Kategori'] || 'Umum').trim(),
+            unit: String(row['Satuan'] || 'Unit').trim(),
+            costPrice:
+              Number(
+                row['Harga Beli / Modal (HPP)'] ||
+                  row['Harga Beli'] ||
+                  row['Harga Modal'] ||
+                  row['HPP'] ||
+                  row['Modal']
+              ) || 0,
+            sellingPrice:
+              Number(row['Harga Jual'] || row['Harga Jual (Rp)'] || row['Harga']) || 0,
+            stock: Number(row['Stok Awal'] || row['Stok'] || row['Stock'] || row['Qty']) || 0,
+            minStock: Number(row['Min Stok'] || row['Minimum Stok']) || 5,
+            description: String(
+              row['Deskripsi / Spesifikasi'] ||
+                row['Deskripsi'] ||
+                row['Spesifikasi'] ||
+                row['Keterangan'] ||
+                ''
+            ).trim(),
             isActive: true,
           }));
 
